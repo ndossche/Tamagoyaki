@@ -1,4 +1,4 @@
-//===-- MinimalOps.td - Python bindings for minimal --*- tablegen -*-===//
+//===-- PotatoOps.td - Python bindings for potato --*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,9 @@
 //
 //===---------------------------------------------------------------------===//
 
-#ifndef PYTHON_BINDINGS_MINIMAL_OPS
-#define PYTHON_BINDINGS_MINIMAL_OPS
+#ifndef PYTHON_BINDINGS_POTATO_OPS
+#define PYTHON_BINDINGS_POTATO_OPS
 
-include "MinimalDialect.td"
+include "PotatoDialect.td"
 
 #endif

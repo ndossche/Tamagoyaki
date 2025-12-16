@@ -1,4 +1,4 @@
-//===- MinimalDialect.cpp - Minimal dialect ---------------------*- C++ -*-===//
+//===- PotatoDialect.cpp - Potato dialect ---------------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MinimalDialect.h"
+#include "PotatoDialect.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
@@ -19,40 +19,40 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
-using namespace mlir::minimal;
+using namespace mlir::potato;
 
-#include "MinimalDialect.cpp.inc"
+#include "PotatoDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
-// Minimal dialect.
+// Potato dialect.
 //===----------------------------------------------------------------------===//
 
-void MinimalDialect::initialize() {
+void PotatoDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "MinimalOps.cpp.inc"
+#include "PotatoOps.cpp.inc"
 
       >();
   registerTypes();
 }
 
 //===----------------------------------------------------------------------===//
-// Minimal ops
+// Potato ops
 //===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
-#include "MinimalOps.cpp.inc"
+#include "PotatoOps.cpp.inc"
 
-namespace mlir::minimal {
-#define GEN_PASS_DEF_MINIMALSWITCHBARFOO
-#include "MinimalPasses.h.inc"
+namespace mlir::potato {
+#define GEN_PASS_DEF_POTATOSWITCHBARFOO
+#include "PotatoPasses.h.inc"
 
 //===----------------------------------------------------------------------===//
-// Minimal passes
+// Potato passes
 //===----------------------------------------------------------------------===//
 
 namespace {
-class MinimalSwitchBarFooRewriter : public OpRewritePattern<func::FuncOp> {
+class PotatoSwitchBarFooRewriter : public OpRewritePattern<func::FuncOp> {
 public:
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(func::FuncOp op,
@@ -65,33 +65,33 @@ public:
   }
 };
 
-class MinimalSwitchBarFoo
-    : public impl::MinimalSwitchBarFooBase<MinimalSwitchBarFoo> {
+class PotatoSwitchBarFoo
+    : public impl::PotatoSwitchBarFooBase<PotatoSwitchBarFoo> {
 public:
-  using impl::MinimalSwitchBarFooBase<
-      MinimalSwitchBarFoo>::MinimalSwitchBarFooBase;
+  using impl::PotatoSwitchBarFooBase<
+      PotatoSwitchBarFoo>::PotatoSwitchBarFooBase;
   void runOnOperation() final {
     RewritePatternSet patterns(&getContext());
-    patterns.add<MinimalSwitchBarFooRewriter>(&getContext());
+    patterns.add<PotatoSwitchBarFooRewriter>(&getContext());
     FrozenRewritePatternSet patternSet(std::move(patterns));
     if (failed(applyPatternsGreedily(getOperation(), patternSet)))
       signalPassFailure();
   }
 };
 } // namespace
-} // namespace mlir::minimal
+} // namespace mlir::potato
 
 //===----------------------------------------------------------------------===//
-// Minimal types
+// Potato types
 //===----------------------------------------------------------------------===//
 
 #define GET_TYPEDEF_CLASSES
-#include "MinimalTypes.cpp.inc"
+#include "PotatoTypes.cpp.inc"
 
-void MinimalDialect::registerTypes() {
+void PotatoDialect::registerTypes() {
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "MinimalTypes.cpp.inc"
+#include "PotatoTypes.cpp.inc"
 
       >();
 }

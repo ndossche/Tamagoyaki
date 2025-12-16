@@ -1,4 +1,4 @@
-// RUN: minimal-opt %s --pass-pipeline="builtin.module(minimal-switch-bar-foo)" | FileCheck %s
+// RUN: potato-opt %s --pass-pipeline="builtin.module(potato-switch-bar-foo)" | FileCheck %s
 
 module {
   // CHECK-LABEL: func @foo()

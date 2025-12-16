@@ -12,7 +12,7 @@ on:
       - main
   schedule:
     # At minute 0 past hour 6. (see https://crontab.guru)
-    - cron: '00 06 * * *'
+    - cron: "00 06 * * *"
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -27,16 +27,15 @@ env:
   PIP_NO_BUILD_ISOLATION: false
 
 jobs:
-
   test:
-
     runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-22.04, ubuntu-22.04-arm, macos-13, macos-14, macos-15 ]
-        py_version: [ "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.14t" ]
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-13, macos-14, macos-15]
+        py_version:
+          ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.14t"]
 
         exclude:
           - os: macos-13
@@ -68,7 +67,7 @@ jobs:
       - name: Install Ninja
         uses: seanmiddleditch/gha-setup-ninja@v6
         with:
-          version: '1.12.1'
+          version: "1.12.1"
 
       - name: set ENV macos
         if: contains(matrix.os, 'macos')
@@ -85,7 +84,7 @@ jobs:
 
       - name: install prereqs
         run: |
-          
+
           pip install --upgrade pip
           pip install cmake>=3.28 setuptools>=64 wheel
           pip install -r requirements.txt
@@ -106,12 +105,12 @@ jobs:
 
       - name: Build and test with CMake/lit
         run: |
-          
-          pushd build && ninja check-minimal && popd
+
+          pushd build && ninja check-potato && popd
           rm -rf build
 
       - name: Build and test using setup.py
-        run: |          
+        run: |
 
           if [ x"${{ matrix.OS }}" == x"ubuntu-22.04" ]; then
             CIBW_ARCHS=x86_64
@@ -125,7 +124,7 @@ jobs:
             CIBW_ARCHS=arm64
           fi
           export CIBW_ARCHS
-          
+
           pip wheel . -w wheelhouse -v
           pip install mmlir -f wheelhouse
           pushd test/python && python smoketest.py && popd

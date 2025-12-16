@@ -7,52 +7,52 @@ add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=mmlir.")
 # Sources
 ################################################################################
 
-declare_mlir_python_sources(MinimalPythonSources)
+declare_mlir_python_sources(PotatoPythonSources)
 
-set(LLVM_TARGET_DEFINITIONS Minimal.td)
-mlir_tablegen(_minimal_ops_gen.py
-  -gen-python-op-bindings -bind-dialect=minimal
+set(LLVM_TARGET_DEFINITIONS Potato.td)
+mlir_tablegen(_potato_ops_gen.py
+  -gen-python-op-bindings -bind-dialect=potato
 )
-set(MINIMAL_OPS_GEN_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
-add_public_tablegen_target(MinimalPythonSources.minimal.tablegen)
+set(POTATO_OPS_GEN_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
+add_public_tablegen_target(PotatoPythonSources.potato.tablegen)
 # copy generated files from build dir to here
 add_custom_command(
   OUTPUT
-    ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects/_minimal_ops_gen.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects/_potato_ops_gen.py
   DEPENDS
-    MinimalPythonSources.minimal.tablegen
+    PotatoPythonSources.potato.tablegen
   COMMENT
     "copying generated py files from build to src include dir"
   COMMAND
-    ${CMAKE_COMMAND} -E copy ${MINIMAL_OPS_GEN_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects
+    ${CMAKE_COMMAND} -E copy ${POTATO_OPS_GEN_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects
 )
 
-add_custom_target(copy_generated_py_to_src_include DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects/_minimal_ops_gen.py)
+add_custom_target(copy_generated_py_to_src_include DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects/_potato_ops_gen.py)
 
-declare_mlir_python_sources(MinimalPythonSources.minimal
-  ADD_TO_PARENT MinimalPythonSources
+declare_mlir_python_sources(PotatoPythonSources.potato
+  ADD_TO_PARENT PotatoPythonSources
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects"
   SOURCES
-    minimal.py
+    potato.py
 )
 
-declare_mlir_python_extension(MinimalPythonSources.Extension
-  MODULE_NAME _minimal
-  ADD_TO_PARENT MinimalPythonSources
+declare_mlir_python_extension(PotatoPythonSources.Extension
+  MODULE_NAME _potato
+  ADD_TO_PARENT PotatoPythonSources
   SOURCES
-    MinimalExtension.cpp
+    PotatoExtension.cpp
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
-    MinimalCAPI
+    PotatoCAPI
 )
 
 ################################################################################
 # Common CAPI
 ################################################################################
 
-add_mlir_python_common_capi_library(MinimalPythonCAPI
-  INSTALL_COMPONENT MinimalPythonModules
+add_mlir_python_common_capi_library(PotatoPythonCAPI
+  INSTALL_COMPONENT PotatoPythonModules
   INSTALL_DESTINATION python/mmlir/_mlir_libs
   OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/mmlir/_mlir_libs
   # this is passed to mlir_python_setup_extension_rpath
@@ -63,7 +63,7 @@ add_mlir_python_common_capi_library(MinimalPythonCAPI
   DECLARED_HEADERS
     MLIRPythonCAPI.HeaderSources
   DECLARED_SOURCES
-    MinimalPythonSources
+    PotatoPythonSources
     MLIRPythonExtension.RegisterEverything
     MLIRPythonSources.Core
 )
@@ -72,14 +72,14 @@ add_mlir_python_common_capi_library(MinimalPythonCAPI
 # Instantiation of all Python modules
 ################################################################################
 
-add_mlir_python_modules(MinimalPythonModules
+add_mlir_python_modules(PotatoPythonModules
   ROOT_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/mmlir"
   INSTALL_PREFIX python/mmlir
   DECLARED_SOURCES
-    MinimalPythonSources
+    PotatoPythonSources
     MLIRPythonExtension.RegisterEverything
     MLIRPythonSources
   COMMON_CAPI_LINK_LIBS
-    MinimalPythonCAPI
+    PotatoPythonCAPI
 )
-add_dependencies(MinimalPythonModules copy_generated_py_to_src_include)
+add_dependencies(PotatoPythonModules copy_generated_py_to_src_include)

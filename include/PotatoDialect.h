@@ -1,4 +1,4 @@
-//===- MinimalDialect.h - Minimal dialect -----------------------*- C++ -*-===//
+//===- PotatoDialect.h - Potato dialect -----------------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MINIMAL_MINIMALDIALECT_H
-#define MINIMAL_MINIMALDIALECT_H
+#ifndef POTATO_POTATODIALECT_H
+#define POTATO_POTATODIALECT_H
 
 #include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -19,20 +19,20 @@
 
 #include <memory>
 
-#include "MinimalDialect.h.inc"
+#include "PotatoDialect.h.inc"
 
 #define GET_OP_CLASSES
-#include "MinimalOps.h.inc"
+#include "PotatoOps.h.inc"
 
-namespace mlir::minimal {
+namespace mlir::potato {
 #define GEN_PASS_DECL
-#include "MinimalPasses.h.inc"
+#include "PotatoPasses.h.inc"
 
 #define GEN_PASS_REGISTRATION
-#include "MinimalPasses.h.inc"
-} // namespace mlir::minimal
+#include "PotatoPasses.h.inc"
+} // namespace mlir::potato
 
 #define GET_TYPEDEF_CLASSES
-#include "MinimalTypes.h.inc"
+#include "PotatoTypes.h.inc"
 
-#endif // MINIMAL_MINIMALDIALECT_H
+#endif // POTATO_POTATODIALECT_H

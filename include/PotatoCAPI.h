@@ -1,4 +1,4 @@
-//===- MinimalCAPI.h - CAPI for minimal dialect -------------------*- C -*-===//
+//===- PotatoCAPI.h - CAPI for potato dialect -------------------*- C -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MINIMAL_C_DIALECTS_H
-#define MINIMAL_C_DIALECTS_H
+#ifndef POTATO_C_DIALECTS_H
+#define POTATO_C_DIALECTS_H
 
 #include "mlir-c/IR.h"
 
@@ -15,18 +15,18 @@
 extern "C" {
 #endif
 
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Minimal, minimal);
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Potato, potato);
 
 //===---------------------------------------------------------------------===//
 // CustomType
 //===---------------------------------------------------------------------===//
 
-MLIR_CAPI_EXPORTED bool mlirTypeIsAMinimalCustomType(MlirType type);
+MLIR_CAPI_EXPORTED bool mlirTypeIsAPotatoCustomType(MlirType type);
 
-MLIR_CAPI_EXPORTED MlirType mlirMinimalCustomTypeGet(MlirContext ctx, MlirStringRef value);
+MLIR_CAPI_EXPORTED MlirType mlirPotatoCustomTypeGet(MlirContext ctx, MlirStringRef value);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // MINIMAL_C_DIALECTS_H
+#endif // POTATO_C_DIALECTS_H

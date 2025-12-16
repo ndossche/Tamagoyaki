@@ -6,23 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MinimalCAPI.h"
+#include "PotatoCAPI.h"
 
-#include "MinimalDialect.h"
+#include "PotatoDialect.h"
 
 #include "mlir/CAPI/Registration.h"
 
-MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Minimal, minimal,
-                                      mlir::minimal::MinimalDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Potato, potato,
+                                      mlir::potato::PotatoDialect)
 
 //===---------------------------------------------------------------------===//
 // CustomType
 //===---------------------------------------------------------------------===//
 
-bool mlirTypeIsAMinimalCustomType(MlirType type) {
-  return llvm::isa<mlir::minimal::CustomType>(unwrap(type));
+bool mlirTypeIsAPotatoCustomType(MlirType type) {
+  return llvm::isa<mlir::potato::CustomType>(unwrap(type));
 }
 
-MlirType mlirMinimalCustomTypeGet(MlirContext ctx, MlirStringRef value) {
-  return wrap(mlir::minimal::CustomType::get(unwrap(ctx), unwrap(value)));
+MlirType mlirPotatoCustomTypeGet(MlirContext ctx, MlirStringRef value) {
+  return wrap(mlir::potato::CustomType::get(unwrap(ctx), unwrap(value)));
 }

@@ -1,4 +1,4 @@
-//===- MinimalExtension.cpp - Extension module ----------------------------===//
+//===- PotatoExtension.cpp - Extension module ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,21 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MinimalCAPI.h"
+#include "PotatoCAPI.h"
 
 #include "mlir/Bindings/Python/PybindAdaptors.h"
 using namespace py::literals;
 
 using namespace mlir::python::adaptors;
 
-PYBIND11_MODULE(_minimal, m) {
+PYBIND11_MODULE(_potato, m) {
   //===--------------------------------------------------------------------===//
-  // minimal dialect
+  // potato dialect
   //===--------------------------------------------------------------------===//
   m.def(
       "register_dialect",
       [](MlirContext context, bool load) {
-        MlirDialectHandle handle = mlirGetDialectHandle__minimal__();
+        MlirDialectHandle handle = mlirGetDialectHandle__potato__();
         mlirDialectHandleRegisterDialect(handle, context);
         if (load) {
           mlirDialectHandleLoadDialect(handle, context);
@@ -29,11 +29,11 @@ PYBIND11_MODULE(_minimal, m) {
       "context"_a = py::none(), "load"_a = true);
 
   mlir_type_subclass customType =
-      mlir_type_subclass(m, "CustomType", mlirTypeIsAMinimalCustomType);
+      mlir_type_subclass(m, "CustomType", mlirTypeIsAPotatoCustomType);
   customType.def_classmethod(
       "get",
       [](const py::object &cls, const std::string &value, MlirContext ctx) {
-        return cls(mlirMinimalCustomTypeGet(
+        return cls(mlirPotatoCustomTypeGet(
             ctx, mlirStringRefCreate(value.data(), value.size())));
       },
       "Get an instance of OperationType in given context.", "cls"_a, "value"_a,
