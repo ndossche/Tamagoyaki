@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20.0)
 project(mmlir LANGUAGES CXX C)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
@@ -31,8 +33,8 @@ add_subdirectory(include)
 include_directories(include)
 add_subdirectory(src)
 if(MLIR_ENABLE_BINDINGS_PYTHON)
-  include(MLIRDetectPythonEnv)
-  mlir_configure_python_dev_packages()
-  add_subdirectory(python)
+    include(MLIRDetectPythonEnv)
+    mlir_configure_python_dev_packages()
+    add_subdirectory(python)
 endif()
 add_subdirectory(test)
