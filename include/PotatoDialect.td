@@ -1,4 +1,4 @@
-//===- PotatoDialect.td - Potato dialect ----      -------*- tablegen -*-===//
+//===- PotatoDialect.td - Potato dialect -----------------*- tablegen -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,6 +12,7 @@
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td" 
 include "mlir/Pass/PassBase.td"
 include "mlir/IR/AttrTypeBase.td"
 
@@ -42,6 +43,10 @@ def Potato_Dialect : Dialect {
 class Potato_Op<string mnemonic, list<Trait> traits = []> :
         Op<Potato_Dialect, mnemonic, traits>;
 
+//===----------------------------------------------------------------------===//
+// Potato Operations
+//===----------------------------------------------------------------------===//
+
 def Potato_FooOp : Potato_Op<"foo", [Pure, SameOperandsAndResultType]> {
     let summary = "Illustrates how to define an operation.";
     let description = [{
@@ -67,6 +72,83 @@ def Potato_FooOp : Potato_Op<"foo", [Pure, SameOperandsAndResultType]> {
         $input attr-dict `:` type($input)
     }];
 }
+
+// definition of the YieldOp (eqsat.yield)
+def Potato_YieldOp : Potato_Op<"yield", [
+    Terminator, 
+    HasParent<"EGraphOp">
+]> {
+    let summary = "Yield values from an egraph region";
+    let description = [{
+        The `potato.yield` operation yields values from a `potato.egraph` region.
+        It serves as the terminator for the egraph block.
+    }];
+
+    let arguments = (ins Variadic<AnyType>:$values);
+    
+    let assemblyFormat = [{
+        $values `:` type($values) attr-dict
+    }];
+    
+    // This allows SingleBlockImplicitTerminator to build 'potato.yield'
+    // without arguments when closing the block.
+    let builders = [
+        OpBuilder<(ins), [{ return; }]>
+    ];
+
+}
+
+def Potato_EGraphOp : Potato_Op<"egraph", [
+    // Ensures the region has one block and ends with a potato.yield
+    SingleBlockImplicitTerminator<"YieldOp">,
+ ]> {
+    let summary = "An e-graph region operation";
+    let description = [{
+        The `potato.egraph` operation contains a single-block region in which
+        equivalence classes and other operations are defined. Importantly,
+        operations in the region are unordered, value uses can come before
+        their definitions.
+    }];
+
+    let results = (outs Variadic<AnyType>:$outputs);
+
+    let regions = (region SizedRegion<1>:$body);
+
+    let assemblyFormat = [{
+        `->` type($outputs) $body attr-dict
+    }];
+}
+
+def Potato_EqOp : Potato_Op<"eq", [
+    Pure, 
+    SameOperandsAndResultType,
+]> {
+    let summary = "An e-class representing a set of equivalent values";
+    let description = [{
+        An e-class operation representing a set of equivalent values.
+    }];
+
+    let arguments = (ins 
+        Variadic<AnyType>:$inputs,
+        OptionalAttr<I64Attr>:$min_cost_index
+    );
+
+    let results = (outs AnyType:$result);
+
+    let assemblyFormat = [{
+        $inputs attr-dict `:` type($result)
+    }];
+
+    // Verify the following:
+    // 1. At least one operand.
+    // 2. Operands cannot be result of other EClassOp.
+    // 3. Operands must be used only by this EClassOp.
+    let hasVerifier = 1; 
+}
+
+//===----------------------------------------------------------------------===//
+// Other Definitions
+//===----------------------------------------------------------------------===//
 
 def PotatoSwitchBarFoo: Pass<"potato-switch-bar-foo", "::mlir::ModuleOp"> {
   let summary = "Switches the name of a FuncOp named `bar` to `foo` and folds.";

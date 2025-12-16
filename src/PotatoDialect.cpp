@@ -43,6 +43,27 @@ void PotatoDialect::initialize() {
 #define GET_OP_CLASSES
 #include "PotatoOps.cpp.inc"
 
+LogicalResult EqOp::verify() {
+    if (getInputs().empty()) {
+        return emitOpError("must have at least one operand");
+    }
+
+    for (Value operand : getInputs()) {
+        Operation *defOp = operand.getDefiningOp();
+        if (defOp && isa<EqOp>(defOp)) {
+            return emitOpError("result of an eq operation cannot be used as an operand of another eq");
+        }
+
+        for (Operation *user : operand.getUsers()) {
+            if (user != getOperation()) {
+                return emitOpError("operands must only be used by the eq operation");
+            }
+        }
+    }
+
+    return success();
+}
+
 namespace mlir::potato {
 #define GEN_PASS_DEF_POTATOSWITCHBARFOO
 #include "PotatoPasses.h.inc"
