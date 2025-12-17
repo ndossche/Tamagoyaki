@@ -105,67 +105,56 @@ public:
 private:
     LogicalResult transformFunction(func::FuncOp funcOp) {
         // Only transform single-block functions
-        if (!llvm::hasSingleElement(funcOp.getBody())) {
+        Region &funcBody = funcOp.getFunctionBody();
+
+        if (!funcBody.hasOneBlock()) {
             return failure();
         }
 
-        Block &entryBlock = funcOp.getBody().front();
-        
-        // Find the return operation
-        func::ReturnOp returnOp = nullptr;
-        for (Operation &op : entryBlock.getOperations()) {
-            if (auto ret = dyn_cast<func::ReturnOp>(op)) {
-                returnOp = ret;
-                break;
-            }
-        }
-        
+        Block &entryBlock = funcBody.front();
+        auto returnOp = dyn_cast<func::ReturnOp>(*entryBlock.getTerminator());
+                
         if (!returnOp) {
             return funcOp.emitOpError("function must have a return operation");
         }
 
         Location loc = funcOp.getLoc();
         
-        // Determine the result types from the function
-        SmallVector<Type> resultTypes;
-        FunctionType funcType = funcOp.getFunctionType();
-        for (Type retType : funcType.getResults()) {
-            resultTypes.push_back(retType);
-        }
-
         // Create the egraph operation at the start of the block
-        OpBuilder builder(&entryBlock, entryBlock.begin());
-        auto egraphOp = EGraphOp::create(builder, loc, resultTypes);
+        FunctionType funcType = funcOp.getFunctionType();
+        OpBuilder builder(funcOp->getContext());
+        auto egraphOp = EGraphOp::create(builder, loc, funcType.getResults());
 
         // Create the implicit block in the egraph region
         Region &egraphBody = egraphOp.getBody();
-        egraphBody.push_back(new Block());
-        Block &egraphBlock = egraphBody.front();
+        egraphBody.takeBody(funcBody);
         
-        // Collect operations to move (all except return and egraph)
-        SmallVector<Operation *> opsToMove;
-        for (Operation &op : entryBlock.getOperations()) {
-            if (&op != returnOp && &op != egraphOp.getOperation()) {
-                opsToMove.push_back(&op);
-            }
+        Block *newEntryBlock = builder.createBlock(
+            &funcBody, 
+            funcBody.end(), 
+            funcType.getInputs(),
+            SmallVector<Location>(funcType.getNumInputs(), loc)
+        );
+    
+        // Insert the egraphOp into the new block
+        builder.setInsertionPointToStart(newEntryBlock);
+        builder.insert(egraphOp);
+    
+        // Create a return that returns the egraphOp's results
+        func::ReturnOp::create(builder, loc, egraphOp->getResults());
+    
+        // Remap the block arguments in the egraph body: the old block args
+        // now need to reference the new entry block's arguments
+        Block &egraphEntryBlock = egraphBody.front();
+        for (auto [oldArg, newArg] : llvm::zip(
+                 egraphEntryBlock.getArguments(), 
+                 newEntryBlock->getArguments())) {
+            oldArg.replaceAllUsesWith(newArg);
         }
         
-        // Move operations into the egraph block
-        for (Operation *op : opsToMove) {
-            op->moveBefore(&egraphBlock, egraphBlock.end());
-        }
-
-        // Create yield with the original return values
-        builder.setInsertionPoint(&egraphBlock, egraphBlock.end());
-        YieldOp::create(builder, loc, returnOp.getOperands());
-
-        // Erase the original return first
-        returnOp.erase();
-
-        // Create the new return with egraph results (after the egraph)
-        builder.setInsertionPoint(&entryBlock, entryBlock.end());
-        func::ReturnOp::create(builder, loc, egraphOp.getResults());
-
+        // Erase the old block arguments from the egraph's block
+        egraphEntryBlock.eraseArguments(0, egraphEntryBlock.getNumArguments());
+    
         return success();
     }
 };
