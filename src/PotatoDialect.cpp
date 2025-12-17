@@ -120,15 +120,21 @@ private:
 
         Location loc = funcOp.getLoc();
         
-        // Create the egraph operation at the start of the block
+        // Create the egraphOp at the start of the block
         FunctionType funcType = funcOp.getFunctionType();
         OpBuilder builder(funcOp->getContext());
         auto egraphOp = EGraphOp::create(builder, loc, funcType.getResults());
 
-        // Create the implicit block in the egraph region
+        // Put the single-block function body in the egraphOp
         Region &egraphBody = egraphOp.getBody();
         egraphBody.takeBody(funcBody);
         
+        // Rewrite the func.return to a potato.yield
+        builder.setInsertionPoint(returnOp);
+        YieldOp::create(builder, returnOp.getLoc(), returnOp.getOperands());
+        returnOp.erase();
+        
+        // Create a new function body
         Block *newEntryBlock = builder.createBlock(
             &funcBody, 
             funcBody.end(), 
