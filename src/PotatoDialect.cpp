@@ -17,6 +17,8 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "mlir/IR/IRMapping.h"
+
 
 using namespace mlir;
 using namespace mlir::potato;
@@ -64,15 +66,110 @@ LogicalResult EqOp::verify() {
     return success();
 }
 
-namespace mlir::potato {
-#define GEN_PASS_DEF_POTATOSWITCHBARFOO
-#include "PotatoPasses.h.inc"
-
 //===----------------------------------------------------------------------===//
 // Potato passes
 //===----------------------------------------------------------------------===//
 
+namespace mlir::potato {
+#define GEN_PASS_DEF_POTATOINSERTEGRAPH
+#define GEN_PASS_DEF_POTATOSWITCHBARFOO
+#include "PotatoPasses.h.inc"
+
+
 namespace {
+    
+class PotatoInsertEgraph
+    : public impl::PotatoInsertEgraphBase<PotatoInsertEgraph> {
+public:
+    using impl::PotatoInsertEgraphBase<
+        PotatoInsertEgraph>::PotatoInsertEgraphBase;
+    void runOnOperation() final {
+        ModuleOp module = getOperation();
+        
+        // Collect all functions first, then process them
+        SmallVector<func::FuncOp> functions;
+        for (Operation &op : module.getBody()->getOperations()) {
+            if (auto funcOp = dyn_cast<func::FuncOp>(op)) {
+                functions.push_back(funcOp);
+            }
+        }
+        
+        // Process each function
+        for (func::FuncOp funcOp : functions) {
+            if (failed(transformFunction(funcOp))) {
+                signalPassFailure();
+            }
+        }
+    }
+
+private:
+    LogicalResult transformFunction(func::FuncOp funcOp) {
+        // Only transform single-block functions
+        if (!llvm::hasSingleElement(funcOp.getBody())) {
+            return failure();
+        }
+
+        Block &entryBlock = funcOp.getBody().front();
+        
+        // Find the return operation
+        func::ReturnOp returnOp = nullptr;
+        for (Operation &op : entryBlock.getOperations()) {
+            if (auto ret = dyn_cast<func::ReturnOp>(op)) {
+                returnOp = ret;
+                break;
+            }
+        }
+        
+        if (!returnOp) {
+            return funcOp.emitOpError("function must have a return operation");
+        }
+
+        Location loc = funcOp.getLoc();
+        
+        // Determine the result types from the function
+        SmallVector<Type> resultTypes;
+        FunctionType funcType = funcOp.getFunctionType();
+        for (Type retType : funcType.getResults()) {
+            resultTypes.push_back(retType);
+        }
+
+        // Create the egraph operation at the start of the block
+        OpBuilder builder(&entryBlock, entryBlock.begin());
+        auto egraphOp = EGraphOp::create(builder, loc, resultTypes);
+
+        // Create the implicit block in the egraph region
+        Region &egraphBody = egraphOp.getBody();
+        egraphBody.push_back(new Block());
+        Block &egraphBlock = egraphBody.front();
+        
+        // Collect operations to move (all except return and egraph)
+        SmallVector<Operation *> opsToMove;
+        for (Operation &op : entryBlock.getOperations()) {
+            if (&op != returnOp && &op != egraphOp.getOperation()) {
+                opsToMove.push_back(&op);
+            }
+        }
+        
+        // Move operations into the egraph block
+        for (Operation *op : opsToMove) {
+            op->moveBefore(&egraphBlock, egraphBlock.end());
+        }
+
+        // Create yield with the original return values
+        builder.setInsertionPoint(&egraphBlock, egraphBlock.end());
+        YieldOp::create(builder, loc, returnOp.getOperands());
+
+        // Erase the original return first
+        returnOp.erase();
+
+        // Create the new return with egraph results (after the egraph)
+        builder.setInsertionPoint(&entryBlock, entryBlock.end());
+        func::ReturnOp::create(builder, loc, egraphOp.getResults());
+
+        return success();
+    }
+};
+    
 class PotatoSwitchBarFooRewriter : public OpRewritePattern<func::FuncOp> {
 public:
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;

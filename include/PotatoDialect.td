@@ -150,6 +150,12 @@ def Potato_EqOp : Potato_Op<"eq", [
 // Other Definitions
 //===----------------------------------------------------------------------===//
 
+def PotatoInsertEgraph : Pass<"potato-insert-egraph", "::mlir::ModuleOp"> {
+  let summary = "Replaces a function body with a potato.egraph operation.";
+  let dependentDialects = ["::mlir::potato::PotatoDialect", "::mlir::func::FuncDialect"];
+}
+  
+
 def PotatoSwitchBarFoo: Pass<"potato-switch-bar-foo", "::mlir::ModuleOp"> {
   let summary = "Switches the name of a FuncOp named `bar` to `foo` and folds.";
   let description = [{
