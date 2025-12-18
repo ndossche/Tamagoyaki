@@ -123,7 +123,7 @@ private:
         // Create the egraphOp at the start of the block
         FunctionType funcType = funcOp.getFunctionType();
         OpBuilder builder(funcOp->getContext());
-        auto egraphOp = EGraphOp::create(builder, loc, funcType.getResults());
+        auto egraphOp = EGraphOp::create(builder, loc, funcType.getResults(), {});
 
         // Put the single-block function body in the egraphOp
         Region &egraphBody = egraphOp.getBody();

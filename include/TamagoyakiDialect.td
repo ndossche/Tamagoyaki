@@ -110,12 +110,13 @@ def Tamagoyaki_EGraphOp : Tamagoyaki_Op<"egraph", [
         their definitions.
     }];
 
+    let arguments = (ins Variadic<AnyType>:$inputs);
     let results = (outs Variadic<AnyType>:$outputs);
 
     let regions = (region SizedRegion<1>:$body);
 
     let assemblyFormat = [{
-        `->` type($outputs) $body attr-dict
+        ($inputs^ `:` type($inputs))? `->` type($outputs) $body attr-dict
     }];
 }
 
