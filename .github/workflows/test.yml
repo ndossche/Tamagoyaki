@@ -27,34 +27,26 @@ env:
   PIP_NO_BUILD_ISOLATION: false
 
 jobs:
+  format:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check code formatting with clang-format
+        run: |
+          pip install clang-format==17.0.6
+          clang-format --version
+          find include src -type f \( -name "*.cpp" -o -name "*.h" \) -print0 | xargs -0 clang-format --dry-run -Werror
+
   test:
     runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-13, macos-14, macos-15]
-        py_version:
-          ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.14t"]
-
-        exclude:
-          - os: macos-13
-            py_version: "3.8"
-
-          - os: macos-13
-            py_version: "3.9"
-
-          - os: macos-14
-            py_version: "3.8"
-
-          - os: macos-14
-            py_version: "3.9"
-
-          - os: macos-15
-            py_version: "3.8"
-
-          - os: macos-15
-            py_version: "3.9"
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15]
+        py_version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.14t"]
 
     defaults:
       run:
@@ -112,15 +104,11 @@ jobs:
       - name: Build and test using setup.py
         run: |
 
-          if [ x"${{ matrix.OS }}" == x"ubuntu-22.04" ]; then
+          if [ x"${{ matrix.os }}" == x"ubuntu-22.04" ]; then
             CIBW_ARCHS=x86_64
-          elif [ x"${{ matrix.OS }}" == x"ubuntu-22.04-arm" ]; then
+          elif [ x"${{ matrix.os }}" == x"ubuntu-22.04-arm" ]; then
             CIBW_ARCHS=aarch64
-          elif [ x"${{ matrix.OS }}" == x"macos-13" ]; then
-            CIBW_ARCHS=x86_64
-          elif [ x"${{ matrix.OS }}" == x"macos-14" ]; then
-            CIBW_ARCHS=arm64
-          elif [ x"${{ matrix.OS }}" == x"macos-15" ]; then
+          elif [ x"${{ matrix.os }}" == x"macos-15" ]; then
             CIBW_ARCHS=arm64
           fi
           export CIBW_ARCHS
