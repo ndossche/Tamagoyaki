@@ -141,6 +141,8 @@ private:
             funcType.getInputs(),
             SmallVector<Location>(funcType.getNumInputs(), loc)
         );
+        
+        egraphOp->setOperands(newEntryBlock->getArguments());
     
         // Insert the egraphOp into the new block
         builder.setInsertionPointToStart(newEntryBlock);
@@ -148,19 +150,7 @@ private:
     
         // Create a return that returns the egraphOp's results
         func::ReturnOp::create(builder, loc, egraphOp->getResults());
-    
-        // Remap the block arguments in the egraph body: the old block args
-        // now need to reference the new entry block's arguments
-        Block &egraphEntryBlock = egraphBody.front();
-        for (auto [oldArg, newArg] : llvm::zip(
-                 egraphEntryBlock.getArguments(), 
-                 newEntryBlock->getArguments())) {
-            oldArg.replaceAllUsesWith(newArg);
-        }
         
-        // Erase the old block arguments from the egraph's block
-        egraphEntryBlock.eraseArguments(0, egraphEntryBlock.getNumArguments());
-    
         return success();
     }
 };

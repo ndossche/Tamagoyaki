@@ -101,6 +101,7 @@ def Tamagoyaki_YieldOp : Tamagoyaki_Op<"yield", [
 def Tamagoyaki_EGraphOp : Tamagoyaki_Op<"egraph", [
     // Ensures the region has one block and ends with a tamagoyaki.yield
     SingleBlockImplicitTerminator<"YieldOp">,
+    IsolatedFromAbove,
  ]> {
     let summary = "An e-graph region operation";
     let description = [{
