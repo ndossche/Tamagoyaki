@@ -1,6 +1,6 @@
-# Tamagoyaki dialect
+# Tama dialect
 set(dialect Tamagoyaki)
-set(dialect_namespace tamagoyaki)
+set(dialect_namespace tama)
 set(LLVM_TARGET_DEFINITIONS ${dialect}Dialect.td)
 
 mlir_tablegen(${dialect}Ops.h.inc -gen-op-decls)
@@ -24,7 +24,7 @@ set(PASS_H_INC_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
 
 add_public_tablegen_target(MLIR${dialect}IncGen)
 
-set(tamagoyaki_generated_files
+set(tama_generated_files
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Ops.h.inc
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Ops.cpp.inc
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Types.h.inc
@@ -37,7 +37,7 @@ set(tamagoyaki_generated_files
 # copy generated files from build dir to here
 add_custom_command(
   OUTPUT
-    ${tamagoyaki_generated_files}
+    ${tama_generated_files}
   DEPENDS
     MLIR${dialect}IncGen
   COMMENT
@@ -58,7 +58,7 @@ add_custom_command(
     ${CMAKE_COMMAND} -E copy ${PASS_H_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-add_custom_target(copy_tamagoyaki_generated_td_to_src_include DEPENDS ${tamagoyaki_generated_files})
+add_custom_target(copy_tamagoyaki_generated_td_to_src_include DEPENDS ${tama_generated_files})
 
 # Tamatch dialect
 set(dialect Tamatch)

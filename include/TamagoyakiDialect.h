@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TAMAGOYAKI_TAMAGOYAKIDIALECT_H
-#define TAMAGOYAKI_TAMAGOYAKIDIALECT_H
+#ifndef TAMAGOYAKI_TAMADIALECT_H
+#define TAMAGOYAKI_TAMADIALECT_H
 
 #include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -25,15 +25,15 @@
 #define GET_OP_CLASSES
 #include "TamagoyakiOps.h.inc"
 
-namespace mlir::tamagoyaki {
+namespace mlir::tama {
 #define GEN_PASS_DECL
 #include "TamagoyakiPasses.h.inc"
 
 #define GEN_PASS_REGISTRATION
 #include "TamagoyakiPasses.h.inc"
-} // namespace mlir::tamagoyaki
+} // namespace mlir::tama
 
 #define GET_TYPEDEF_CLASSES
 #include "TamagoyakiTypes.h.inc"
 
-#endif // TAMAGOYAKI_TAMAGOYAKIDIALECT_H
+#endif // TAMAGOYAKI_TAMADIALECT_H

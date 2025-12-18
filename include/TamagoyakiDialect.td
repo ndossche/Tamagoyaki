@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TAMAGOYAKI_DIALECT
-#define TAMAGOYAKI_DIALECT
+#ifndef TAMA_DIALECT
+#define TAMA_DIALECT
 
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -20,15 +20,15 @@ include "mlir/IR/AttrTypeBase.td"
 // Tamagoyaki dialect definition.
 //===----------------------------------------------------------------------===//
 
-def Tamagoyaki_Dialect : Dialect {
-    let name = "tamagoyaki";
-    let summary = "A tamagoyaki out-of-tree MLIR dialect.";
+def Tama_Dialect : Dialect {
+    let name = "tama";
+    let summary = "A tama out-of-tree MLIR dialect.";
     let description = [{
         This dialect is an example of an out-of-tree MLIR dialect designed to
         illustrate the basic setup required to develop MLIR-based tools without
         working inside of the LLVM source tree.
     }];
-    let cppNamespace = "::mlir::tamagoyaki";
+    let cppNamespace = "::mlir::tama";
 
     let useDefaultTypePrinterParser = 1;
     let extraClassDeclaration = [{
@@ -37,20 +37,20 @@ def Tamagoyaki_Dialect : Dialect {
 }
 
 //===----------------------------------------------------------------------===//
-// Base tamagoyaki operation definition.
+// Base tama operation definition.
 //===----------------------------------------------------------------------===//
 
-class Tamagoyaki_Op<string mnemonic, list<Trait> traits = []> :
-        Op<Tamagoyaki_Dialect, mnemonic, traits>;
+class Tama_Op<string mnemonic, list<Trait> traits = []> :
+        Op<Tama_Dialect, mnemonic, traits>;
 
 //===----------------------------------------------------------------------===//
-// Tamagoyaki Operations
+// Tama Operations
 //===----------------------------------------------------------------------===//
 
-def Tamagoyaki_FooOp : Tamagoyaki_Op<"foo", [Pure, SameOperandsAndResultType]> {
+def Tama_FooOp : Tama_Op<"foo", [Pure, SameOperandsAndResultType]> {
     let summary = "Illustrates how to define an operation.";
     let description = [{
-        The `tamagoyaki.foo` operation illustrates how to define a new
+        The `tama.foo` operation illustrates how to define a new
         operation in a dialect. It uses an operation trait to declare that it
         has no side effects.
 
@@ -61,7 +61,7 @@ def Tamagoyaki_FooOp : Tamagoyaki_Op<"foo", [Pure, SameOperandsAndResultType]> {
         ```mlir
         %0 = arith.constant 2 : i32
         // Apply the foo operation to %0
-        %1 = tamagoyaki.foo %0 : i32
+        %1 = tama.foo %0 : i32
         ```
     }];
 
@@ -74,13 +74,13 @@ def Tamagoyaki_FooOp : Tamagoyaki_Op<"foo", [Pure, SameOperandsAndResultType]> {
 }
 
 // definition of the YieldOp (eqsat.yield)
-def Tamagoyaki_YieldOp : Tamagoyaki_Op<"yield", [
+def Tama_YieldOp : Tama_Op<"yield", [
     Terminator, 
     HasParent<"EGraphOp">
 ]> {
     let summary = "Yield values from an egraph region";
     let description = [{
-        The `tamagoyaki.yield` operation yields values from a `tamagoyaki.egraph` region.
+        The `tama.yield` operation yields values from a `tama.egraph` region.
         It serves as the terminator for the egraph block.
     }];
 
@@ -90,7 +90,7 @@ def Tamagoyaki_YieldOp : Tamagoyaki_Op<"yield", [
         $values `:` type($values) attr-dict
     }];
     
-    // This allows SingleBlockImplicitTerminator to build 'tamagoyaki.yield'
+    // This allows SingleBlockImplicitTerminator to build 'tama.yield'
     // without arguments when closing the block.
     let builders = [
         OpBuilder<(ins), [{ return; }]>
@@ -98,14 +98,14 @@ def Tamagoyaki_YieldOp : Tamagoyaki_Op<"yield", [
 
 }
 
-def Tamagoyaki_EGraphOp : Tamagoyaki_Op<"egraph", [
-    // Ensures the region has one block and ends with a tamagoyaki.yield
+def Tama_EGraphOp : Tama_Op<"egraph", [
+    // Ensures the region has one block and ends with a tama.yield
     SingleBlockImplicitTerminator<"YieldOp">,
     IsolatedFromAbove,
  ]> {
     let summary = "An e-graph region operation";
     let description = [{
-        The `tamagoyaki.egraph` operation contains a single-block region in which
+        The `tama.egraph` operation contains a single-block region in which
         equivalence classes and other operations are defined. Importantly,
         operations in the region are unordered, value uses can come before
         their definitions.
@@ -121,7 +121,7 @@ def Tamagoyaki_EGraphOp : Tamagoyaki_Op<"egraph", [
     }];
 }
 
-def Tamagoyaki_EqOp : Tamagoyaki_Op<"eq", [
+def Tama_EqOp : Tama_Op<"eq", [
     Pure, 
     SameOperandsAndResultType,
 ]> {
@@ -152,13 +152,13 @@ def Tamagoyaki_EqOp : Tamagoyaki_Op<"eq", [
 // Other Definitions
 //===----------------------------------------------------------------------===//
 
-def TamagoyakiInsertEgraph : Pass<"tamagoyaki-insert-egraph", "::mlir::ModuleOp"> {
-  let summary = "Replaces a function body with a tamagoyaki.egraph operation.";
-  let dependentDialects = ["::mlir::tamagoyaki::TamagoyakiDialect", "::mlir::func::FuncDialect"];
+def TamaInsertEgraph : Pass<"tama-insert-egraph", "::mlir::ModuleOp"> {
+  let summary = "Replaces a function body with a tama.egraph operation.";
+  let dependentDialects = ["::mlir::tama::TamaDialect", "::mlir::func::FuncDialect"];
 }
   
 
-def TamagoyakiSwitchBarFoo: Pass<"tamagoyaki-switch-bar-foo", "::mlir::ModuleOp"> {
+def TamaSwitchBarFoo: Pass<"tama-switch-bar-foo", "::mlir::ModuleOp"> {
   let summary = "Switches the name of a FuncOp named `bar` to `foo` and folds.";
   let description = [{
     Switches the name of a FuncOp named `bar` to `foo` and folds.
@@ -174,16 +174,16 @@ def TamagoyakiSwitchBarFoo: Pass<"tamagoyaki-switch-bar-foo", "::mlir::ModuleOp"
   }];
 }
 
-class Tamagoyaki_Type<string name, string typeMnemonic, list<Trait> traits = []>
-    : TypeDef<Tamagoyaki_Dialect, name, traits> {
+class Tama_Type<string name, string typeMnemonic, list<Trait> traits = []>
+    : TypeDef<Tama_Dialect, name, traits> {
   let mnemonic = typeMnemonic;
 }
 
-def Tamagoyaki_CustomType : Tamagoyaki_Type<"Custom", "custom"> {
-    let summary = "Tamagoyaki custom type";
-    let description = "Custom type in tamagoyaki dialect";
+def Tama_CustomType : Tama_Type<"Custom", "custom"> {
+    let summary = "Tama custom type";
+    let description = "Custom type in tama dialect";
     let parameters = (ins StringRefParameter<"the custom value">:$value);
     let assemblyFormat = "`<` $value `>`";
 }
 
-#endif // TAMAGOYAKI_DIALECT
+#endif // TAMA_DIALECT

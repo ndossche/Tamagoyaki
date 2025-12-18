@@ -21,15 +21,15 @@
 
 
 using namespace mlir;
-using namespace mlir::tamagoyaki;
+using namespace mlir::tama;
 
 #include "TamagoyakiDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
-// Tamagoyaki dialect.
+// Tama dialect.
 //===----------------------------------------------------------------------===//
 
-void TamagoyakiDialect::initialize() {
+void TamaDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "TamagoyakiOps.cpp.inc"
@@ -39,7 +39,7 @@ void TamagoyakiDialect::initialize() {
 }
 
 //===----------------------------------------------------------------------===//
-// Tamagoyaki ops
+// Tama ops
 //===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
@@ -70,9 +70,9 @@ LogicalResult EqOp::verify() {
 // Tamagoyaki passes
 //===----------------------------------------------------------------------===//
 
-namespace mlir::tamagoyaki {
-#define GEN_PASS_DEF_TAMAGOYAKIINSERTEGRAPH
-#define GEN_PASS_DEF_TAMAGOYAKISWITCHBARFOO
+namespace mlir::tama {
+#define GEN_PASS_DEF_TAMAINSERTEGRAPH
+#define GEN_PASS_DEF_TAMASWITCHBARFOO
 #include "TamagoyakiPasses.h.inc"
 
 
@@ -125,11 +125,11 @@ void wrapValuesInEqOps(Region &region, OpBuilder &builder) {
 }
 
     
-class TamagoyakiInsertEgraph
-    : public impl::TamagoyakiInsertEgraphBase<TamagoyakiInsertEgraph> {
+class TamaInsertEgraph
+    : public impl::TamaInsertEgraphBase<TamaInsertEgraph> {
 public:
-    using impl::TamagoyakiInsertEgraphBase<
-        TamagoyakiInsertEgraph>::TamagoyakiInsertEgraphBase;
+    using impl::TamaInsertEgraphBase<
+        TamaInsertEgraph>::TamaInsertEgraphBase;
     void runOnOperation() final {
         ModuleOp module = getOperation();
         
@@ -176,7 +176,7 @@ private:
         Region &egraphBody = egraphOp.getBody();
         egraphBody.takeBody(funcBody);
         
-        // Rewrite the func.return to a tamagoyaki.yield
+        // Rewrite the func.return to a tama.yield
         builder.setInsertionPoint(returnOp);
         YieldOp::create(builder, returnOp.getLoc(), returnOp.getOperands());
         returnOp.erase();
@@ -206,7 +206,7 @@ private:
     }
 };
     
-class TamagoyakiSwitchBarFooRewriter : public OpRewritePattern<func::FuncOp> {
+class TamaSwitchBarFooRewriter : public OpRewritePattern<func::FuncOp> {
 public:
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(func::FuncOp op,
@@ -219,30 +219,30 @@ public:
   }
 };
 
-class TamagoyakiSwitchBarFoo
-    : public impl::TamagoyakiSwitchBarFooBase<TamagoyakiSwitchBarFoo> {
+class TamaSwitchBarFoo
+    : public impl::TamaSwitchBarFooBase<TamaSwitchBarFoo> {
 public:
-  using impl::TamagoyakiSwitchBarFooBase<
-      TamagoyakiSwitchBarFoo>::TamagoyakiSwitchBarFooBase;
+  using impl::TamaSwitchBarFooBase<
+      TamaSwitchBarFoo>::TamaSwitchBarFooBase;
   void runOnOperation() final {
     RewritePatternSet patterns(&getContext());
-    patterns.add<TamagoyakiSwitchBarFooRewriter>(&getContext());
+    patterns.add<TamaSwitchBarFooRewriter>(&getContext());
     FrozenRewritePatternSet patternSet(std::move(patterns));
     if (failed(applyPatternsGreedily(getOperation(), patternSet)))
       signalPassFailure();
   }
 };
 } // namespace
-} // namespace mlir::tamagoyaki
+} // namespace mlir::tama
 
 //===----------------------------------------------------------------------===//
-// Tamagoyaki types
+// Tama types
 //===----------------------------------------------------------------------===//
 
 #define GET_TYPEDEF_CLASSES
 #include "TamagoyakiTypes.cpp.inc"
 
-void TamagoyakiDialect::registerTypes() {
+void TamaDialect::registerTypes() {
   addTypes<
 #define GET_TYPEDEF_LIST
 #include "TamagoyakiTypes.cpp.inc"

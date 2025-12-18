@@ -10,34 +10,34 @@ add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=mmlir.")
 declare_mlir_python_sources(TamagoyakiPythonSources)
 
 set(LLVM_TARGET_DEFINITIONS Tamagoyaki.td)
-mlir_tablegen(_tamagoyaki_ops_gen.py
-  -gen-python-op-bindings -bind-dialect=tamagoyaki
+mlir_tablegen(_tama_ops_gen.py
+  -gen-python-op-bindings -bind-dialect=tama
 )
-set(TAMAGOYAKI_OPS_GEN_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
-add_public_tablegen_target(TamagoyakiPythonSources.tamagoyaki.tablegen)
+set(TAMA_OPS_GEN_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
+add_public_tablegen_target(TamagoyakiPythonSources.tama.tablegen)
 # copy generated files from build dir to here
 add_custom_command(
   OUTPUT
-    ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects/_tamagoyaki_ops_gen.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects/_tama_ops_gen.py
   DEPENDS
-    TamagoyakiPythonSources.tamagoyaki.tablegen
+    TamagoyakiPythonSources.tama.tablegen
   COMMENT
     "copying generated py files from build to src include dir"
   COMMAND
-    ${CMAKE_COMMAND} -E copy ${TAMAGOYAKI_OPS_GEN_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects
+    ${CMAKE_COMMAND} -E copy ${TAMA_OPS_GEN_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects
 )
 
-add_custom_target(copy_generated_py_to_src_include DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects/_tamagoyaki_ops_gen.py)
+add_custom_target(copy_generated_py_to_src_include DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects/_tama_ops_gen.py)
 
-declare_mlir_python_sources(TamagoyakiPythonSources.tamagoyaki
+declare_mlir_python_sources(TamagoyakiPythonSources.tama
   ADD_TO_PARENT TamagoyakiPythonSources
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mmlir/dialects"
   SOURCES
-    tamagoyaki.py
+    tama.py
 )
 
 declare_mlir_python_extension(TamagoyakiPythonSources.Extension
-  MODULE_NAME _tamagoyaki
+  MODULE_NAME _tama
   ADD_TO_PARENT TamagoyakiPythonSources
   SOURCES
     TamagoyakiExtension.cpp

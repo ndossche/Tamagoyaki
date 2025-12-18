@@ -12,17 +12,17 @@
 
 #include "mlir/CAPI/Registration.h"
 
-MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Tamagoyaki, tamagoyaki,
-                                      mlir::tamagoyaki::TamagoyakiDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Tama, tama,
+                                       mlir::tama::TamaDialect)
 
 //===---------------------------------------------------------------------===//
 // CustomType
 //===---------------------------------------------------------------------===//
 
-bool mlirTypeIsATamagoyakiCustomType(MlirType type) {
-  return llvm::isa<mlir::tamagoyaki::CustomType>(unwrap(type));
+bool mlirTypeIsATamaCustomType(MlirType type) {
+  return llvm::isa<mlir::tama::CustomType>(unwrap(type));
 }
 
-MlirType mlirTamagoyakiCustomTypeGet(MlirContext ctx, MlirStringRef value) {
-  return wrap(mlir::tamagoyaki::CustomType::get(unwrap(ctx), unwrap(value)));
+MlirType mlirTamaCustomTypeGet(MlirContext ctx, MlirStringRef value) {
+  return wrap(mlir::tama::CustomType::get(unwrap(ctx), unwrap(value)));
 }

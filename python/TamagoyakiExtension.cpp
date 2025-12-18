@@ -13,14 +13,14 @@ using namespace py::literals;
 
 using namespace mlir::python::adaptors;
 
-PYBIND11_MODULE(_tamagoyaki, m) {
+PYBIND11_MODULE(_tama, m) {
   //===--------------------------------------------------------------------===//
-  // tamagoyaki dialect
+  // tama dialect
   //===--------------------------------------------------------------------===//
   m.def(
       "register_dialect",
       [](MlirContext context, bool load) {
-        MlirDialectHandle handle = mlirGetDialectHandle__tamagoyaki__();
+        MlirDialectHandle handle = mlirGetDialectHandle__tama__();
         mlirDialectHandleRegisterDialect(handle, context);
         if (load) {
           mlirDialectHandleLoadDialect(handle, context);
@@ -29,11 +29,11 @@ PYBIND11_MODULE(_tamagoyaki, m) {
       "context"_a = py::none(), "load"_a = true);
 
   mlir_type_subclass customType =
-      mlir_type_subclass(m, "CustomType", mlirTypeIsATamagoyakiCustomType);
+      mlir_type_subclass(m, "CustomType", mlirTypeIsATamaCustomType);
   customType.def_classmethod(
       "get",
       [](const py::object &cls, const std::string &value, MlirContext ctx) {
-        return cls(mlirTamagoyakiCustomTypeGet(
+        return cls(mlirTamaCustomTypeGet(
             ctx, mlirStringRefCreate(value.data(), value.size())));
       },
       "Get an instance of OperationType in given context.", "cls"_a, "value"_a,

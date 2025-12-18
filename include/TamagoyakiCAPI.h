@@ -1,4 +1,4 @@
-//===- TamagoyakiCAPI.h - CAPI for tamagoyaki dialect -------------*- C -*-===//
+//===- TamagoyakiCAPI.h - CAPI for tama dialect ----*- C -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,16 +15,16 @@
 extern "C" {
 #endif
 
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Tamagoyaki, tamagoyaki);
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Tama, tama);
 
 //===---------------------------------------------------------------------===//
 // CustomType
 //===---------------------------------------------------------------------===//
 
-MLIR_CAPI_EXPORTED bool mlirTypeIsATamagoyakiCustomType(MlirType type);
+MLIR_CAPI_EXPORTED bool mlirTypeIsATamaCustomType(MlirType type);
 
-MLIR_CAPI_EXPORTED MlirType mlirTamagoyakiCustomTypeGet(MlirContext ctx,
-                                                        MlirStringRef value);
+MLIR_CAPI_EXPORTED MlirType mlirTamaCustomTypeGet(MlirContext ctx,
+                                                  MlirStringRef value);
 
 #ifdef __cplusplus
 }

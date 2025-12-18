@@ -16,14 +16,14 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
 using namespace mlir;
-using namespace mlir::tamagoyaki;
+using namespace mlir::tama;
 using namespace mlir::tamatch;
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
-  mlir::tamagoyaki::registerPasses();
+  mlir::tama::registerPasses();
   mlir::DialectRegistry registry;
-  registry.insert<mlir::tamagoyaki::TamagoyakiDialect, mlir::tamatch::TamatchDialect,
+  registry.insert<mlir::tama::TamaDialect, mlir::tamatch::TamatchDialect,
                   mlir::arith::ArithDialect, mlir::func::FuncDialect>();
   registerAllDialects(registry);
 

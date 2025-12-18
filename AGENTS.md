@@ -3,12 +3,12 @@
 A guide to developing MLIR dialects for equivalence graph (e-graph) operations in this project.
 
 This document covers:
-- **Tamagoyaki dialect**: E-graph operations (`tamagoyaki.eq`, `tamagoyaki.egraph`, `tamagoyaki.yield`)
+- **Tama dialect**: E-graph operations (`tama.eq`, `tama.egraph`, `tama.yield`)
 - **Tamatch dialect**: Pattern matching operations (example dialect)
 
 ## Operations Reference
 
-### tamagoyaki.foo
+### tama.foo
 
 **Purpose**: Illustrative operation demonstrating operation definition.
 
@@ -16,7 +16,7 @@ This document covers:
 
 **Signature**:
 ```mlir
-%result = tamagoyaki.foo %input : i32
+%result = tama.foo %input : i32
 ```
 
 **Definition** (`include/TamagoyakiDialect.td:50`):
@@ -29,7 +29,7 @@ This document covers:
 
 ---
 
-### tamagoyaki.eq
+### tama.eq
 
 **Purpose**: Represents an equivalence class containing a set of equivalent values. Operations marked with `eq` must satisfy strict verification constraints.
 
@@ -37,8 +37,8 @@ This document covers:
 
 **Signature**:
 ```mlir
-%eq_result = tamagoyaki.eq %value1, %value2, ... : type
-%eq_result = tamagoyaki.eq %value1 {min_cost_index = 0 : i64} : type
+%eq_result = tama.eq %value1, %value2, ... : type
+%eq_result = tama.eq %value1 {min_cost_index = 0 : i64} : type
 ```
 
 **Arguments**:
@@ -69,49 +69,49 @@ This document covers:
 **Example - Valid**:
 ```mlir
 %0 = arith.constant 1 : i32
-%1 = tamagoyaki.eq %0 : i32
+%1 = tama.eq %0 : i32
 ```
 
 **Example - Invalid (nested eq)**:
 ```mlir
 %0 = arith.constant 1 : i32
-%1 = tamagoyaki.eq %0 : i32
+%1 = tama.eq %0 : i32
 // ERROR: Cannot use %1 (eq result) as operand to another eq
-%2 = tamagoyaki.eq %1 : i32
+%2 = tama.eq %1 : i32
 ```
 
 **Example - Invalid (operand reuse)**:
 ```mlir
 %0 = arith.constant 1 : i32
-%1 = tamagoyaki.eq %0 : i32
+%1 = tama.eq %0 : i32
 // ERROR: %0 used by arith.addi, violates exclusive-use rule
 %2 = arith.addi %0, %0 : i32
 ```
 
 ---
 
-### tamagoyaki.egraph
+### tama.egraph
 
 **Purpose**: Defines an e-graph region—a single-block region containing unordered operations and equivalence classes.
 
 **Traits**: 
-- `SingleBlockImplicitTerminator<"YieldOp">` — ensures one block ending with `tamagoyaki.yield`
+- `SingleBlockImplicitTerminator<"YieldOp">` — ensures one block ending with `tama.yield`
 - `IsolatedFromAbove` — isolates region from surrounding context
 
 **Signature**:
 ```mlir
 // No inputs
-%results = tamagoyaki.egraph -> type1, type2 {
+%results = tama.egraph -> type1, type2 {
   ^bb0:
     // operations
-    tamagoyaki.yield %value1, %value2 : type1, type2
+    tama.yield %value1, %value2 : type1, type2
 }
 
 // With inputs
-%results = tamagoyaki.egraph %input : type1 -> type2 {
+%results = tama.egraph %input : type1 -> type2 {
   ^bb0(%arg0: type1):
     // operations
-    tamagoyaki.yield %result : type2
+    tama.yield %result : type2
 }
 ```
 
@@ -131,11 +131,11 @@ This document covers:
 **Example**:
 ```mlir
 func.func @main(%arg0: i32) -> (i32, i32) {
-  %0:2 = tamagoyaki.egraph %arg0 : i32 -> i32, i32 {
+  %0:2 = tama.egraph %arg0 : i32 -> i32, i32 {
   ^bb0(%arg1: i32):
     %c1_i32 = arith.constant 1 : i32
     %1 = arith.addi %arg1, %c1_i32 : i32
-    tamagoyaki.yield %c1_i32, %1 : i32, i32
+    tama.yield %c1_i32, %1 : i32, i32
   }
   return %0#0, %0#1 : i32, i32
 }
@@ -143,9 +143,9 @@ func.func @main(%arg0: i32) -> (i32, i32) {
 
 ---
 
-### tamagoyaki.yield
+### tama.yield
 
-**Purpose**: Terminator operation for `tamagoyaki.egraph` regions.
+**Purpose**: Terminator operation for `tama.egraph` regions.
 
 **Traits**: 
 - `Terminator` — marks as block terminator
@@ -153,9 +153,9 @@ func.func @main(%arg0: i32) -> (i32, i32) {
 
 **Signature**:
 ```mlir
-tamagoyaki.yield %value1, %value2 : type1, type2
-tamagoyaki.yield %value : type
-tamagoyaki.yield : // empty yield
+tama.yield %value1, %value2 : type1, type2
+tama.yield %value : type
+tama.yield : // empty yield
 ```
 
 **Arguments**: `values` (Variadic<AnyType>) — values yielded from egraph
@@ -166,17 +166,17 @@ tamagoyaki.yield : // empty yield
 
 ---
 
-### tamagoyaki.custom<"value"> Type
+### tama.custom<"value"> Type
 
 **Purpose**: Custom parametric type for the dialect.
 
-**Syntax**: `!tamagoyaki.custom<"string_value">`
+**Syntax**: `!tama.custom<"string_value">`
 
 **Parameter**: String-valued custom data
 
 **Example**:
 ```mlir
-func.func @tamagoyaki_types(%arg0: !tamagoyaki.custom<"10">) {
+func.func @tama_types(%arg0: !tama.custom<"10">) {
   return
 }
 ```
@@ -215,15 +215,15 @@ func.func @example() {
 
 ## Transformation Passes
 
-### tamagoyaki-insert-egraph
+### tama-insert-egraph
 
-**Command**: `-tamagoyaki-insert-egraph`
+**Command**: `-tama-insert-egraph`
 
 **Target**: `::mlir::ModuleOp`
 
-**Dependent Dialects**: `TamagoyakiDialect`, `func::FuncDialect`
+**Dependent Dialects**: `TamaDialect`, `func::FuncDialect`
 
-**Summary**: Wraps function bodies in `tamagoyaki.egraph` operations and wraps all values/operands in `tamagoyaki.eq` operations.
+**Summary**: Wraps function bodies in `tama.egraph` operations and wraps all values/operands in `tama.eq` operations.
 
 **When to Use**:
 - Preparing IR for e-graph based transformations
@@ -233,20 +233,20 @@ func.func @example() {
 
 1. **Collect functions**: Iterates module-level operations
 2. **Transform each single-block function**:
-   - Creates `tamagoyaki.egraph` operation with function result types
-   - Moves function body into egraph region
-   - Replaces `func.return` with `tamagoyaki.yield`
-   - Wraps all values in `tamagoyaki.eq` operations (recursive, depth-first)
-   - Creates new entry block with function arguments
-   - Returns egraph results via new `func.return`
+    - Creates `tama.egraph` operation with function result types
+    - Moves function body into egraph region
+    - Replaces `func.return` with `tama.yield`
+    - Wraps all values in `tama.eq` operations (recursive, depth-first)
+    - Creates new entry block with function arguments
+    - Returns egraph results via new `func.return`
 
 **Value Wrapping Logic** (`src/TamagoyakiDialect.cpp:84`):
 
 - Wraps block arguments first (at block start)
 - Processes operations in reverse order to avoid iterator invalidation
 - Recursively processes nested regions
-- Skips existing `tamagoyaki.eq` operations (prevents nesting violations)
-- For each value, creates `tamagoyaki.eq` and replaces uses (except the eq itself)
+- Skips existing `tama.eq` operations (prevents nesting violations)
+- For each value, creates `tama.eq` and replaces uses (except the eq itself)
 
 **Example Transformation**:
 
@@ -262,14 +262,14 @@ func.func @main(%arg0: i32) -> (i32, i32) {
 **Output**:
 ```mlir
 func.func @main(%arg0: i32) -> (i32, i32) {
-  %0:2 = tamagoyaki.egraph %arg0 : i32 -> i32, i32 {
+  %0:2 = tama.egraph %arg0 : i32 -> i32, i32 {
   ^bb0(%arg1: i32):
-    %1 = tamagoyaki.eq %arg1 : i32
+    %1 = tama.eq %arg1 : i32
     %c1_i32 = arith.constant 1 : i32
-    %2 = tamagoyaki.eq %c1_i32 : i32
+    %2 = tama.eq %c1_i32 : i32
     %3 = arith.addi %1, %2 : i32
-    %4 = tamagoyaki.eq %3 : i32
-    tamagoyaki.yield %2, %4 : i32, i32
+    %4 = tama.eq %3 : i32
+    tama.yield %2, %4 : i32, i32
   }
   return %0#0, %0#1 : i32, i32
 }
@@ -281,9 +281,9 @@ func.func @main(%arg0: i32) -> (i32, i32) {
 
 ---
 
-### tamagoyaki-switch-bar-foo
+### tama-switch-bar-foo
 
-**Command**: `-tamagoyaki-switch-bar-foo` or `--pass-pipeline="builtin.module(tamagoyaki-switch-bar-foo)"`
+**Command**: `-tama-switch-bar-foo` or `--pass-pipeline="builtin.module(tama-switch-bar-foo)"`
 
 **Target**: `::mlir::ModuleOp`
 
@@ -508,12 +508,12 @@ lit ../test/lit/tamagoyaki-insert-egraph.mlir -v -a
 
 **With pass**:
 ```bash
-./build/bin/tamagoyaki-opt -tamagoyaki-insert-egraph input.mlir
+./build/bin/tamagoyaki-opt -tama-insert-egraph input.mlir
 ```
 
 **With pass pipeline**:
 ```bash
-./build/bin/tamagoyaki-opt --pass-pipeline="builtin.module(tamagoyaki-switch-bar-foo)" input.mlir
+./build/bin/tamagoyaki-opt --pass-pipeline="builtin.module(tama-switch-bar-foo)" input.mlir
 ```
 
 **Print generic form** (debug):
@@ -529,7 +529,7 @@ lit ../test/lit/tamagoyaki-insert-egraph.mlir -v -a
 **Apply multiple passes**:
 ```bash
 ./build/bin/tamagoyaki-opt \
-  --pass-pipeline="builtin.module(tamagoyaki-insert-egraph,tamagoyaki-switch-bar-foo)" \
+  --pass-pipeline="builtin.module(tama-insert-egraph,tama-switch-bar-foo)" \
   input.mlir
 ```
 
@@ -622,7 +622,7 @@ module = ir.Module.parse("""
    ```tablegen
    def TamagoyakiMyPass : Pass<"tamagoyaki-my-pass", "::mlir::ModuleOp"> {
        let summary = "Short description";
-       let dependentDialects = ["::mlir::tamagoyaki::TamagoyakiDialect"];
+       let dependentDialects = ["::mlir::tama::TamaDialect"];
    }
    ```
 
@@ -750,11 +750,11 @@ MLIR_DEBUG=1 ./build/bin/tamagoyaki-opt input.mlir 2>&1 | grep "Processing"
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `must have at least one operand` | Empty `tamagoyaki.eq` | Add operand to eq |
+| `must have at least one operand` | Empty `tama.eq` | Add operand to eq |
 | `result of an eq operation cannot be used as an operand of another eq` | Nested eq operations | Flatten: use original operands |
 | `operands must only be used by the eq operation` | Value used elsewhere | Wrap uses in eq, or restructure |
 | `expected block with 1 block but got N` | egraph has multiple blocks | egraph must be single-block; use `SingleBlockImplicitTerminator` |
-| `expected terminator "tamagoyaki.yield"` | egraph lacks yield | Add `tamagoyaki.yield` before block end |
+| `expected terminator "tama.yield"` | egraph lacks yield | Add `tama.yield` before block end |
 | `HasParent constraint violated` | yield outside egraph | Move yield inside egraph or use within egraph only |
 
 **Verify IR explicitly**:
