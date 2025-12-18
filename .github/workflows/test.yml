@@ -30,14 +30,9 @@ jobs:
   format:
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check code formatting with clang-format
-        run: |
-          pip install clang-format==17.0.6
-          clang-format --version
-          find include src -type f \( -name "*.cpp" -o -name "*.h" \) -print0 | xargs -0 clang-format --dry-run -Werror
+      - uses: actions/checkout@v4
+      - name: Run clang-format style check for C/C++/Protobuf programs.
+        uses: jidicula/clang-format-action@v4.16.0
 
   test:
     runs-on: ${{ matrix.os }}

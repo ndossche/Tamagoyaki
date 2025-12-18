@@ -68,4 +68,17 @@ def Tamatch_FooOp : Tamatch_Op<"foo", [Pure, SameOperandsAndResultType]> {
     }];
 }
 
+//===----------------------------------------------------------------------===//
+// Tamatch Passes
+//===----------------------------------------------------------------------===//
+
+def TamatchTestPass : Pass<"tamatch-test-pass", "::mlir::ModuleOp"> {
+    let summary = "Test pass for pattern rewriting in tamatch dialect";
+    let description = [{
+        This pass applies pattern rewriting to operations in the tamatch dialect.
+        It serves as an example of implementing a transformation pass.
+    }];
+    let dependentDialects = ["::mlir::tamatch::TamatchDialect"];
+}
+
 #endif // TAMATCH_DIALECT

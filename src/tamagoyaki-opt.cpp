@@ -1,4 +1,4 @@
-//===- tamagoyaki-opt.cpp ------------------------------------------*- C++ -*-===//
+//===- tamagoyaki-opt.cpp ---------------------------------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,12 +19,16 @@ using namespace mlir;
 using namespace mlir::tama;
 using namespace mlir::tamatch;
 
+namespace mlir::tamatch {
+void registerPasses();
+}
+
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
   mlir::tama::registerPasses();
+  mlir::tamatch::registerPasses();
   mlir::DialectRegistry registry;
-  registry.insert<mlir::tama::TamaDialect, mlir::tamatch::TamatchDialect,
-                  mlir::arith::ArithDialect, mlir::func::FuncDialect>();
+  registry.insert<mlir::tama::TamaDialect, mlir::tamatch::TamatchDialect>();
   registerAllDialects(registry);
 
   return mlir::asMainReturnCode(

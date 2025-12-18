@@ -12,8 +12,7 @@
 
 #include "mlir/CAPI/Registration.h"
 
-MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Tama, tama,
-                                       mlir::tama::TamaDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Tama, tama, mlir::tama::TamaDialect)
 
 //===---------------------------------------------------------------------===//
 // CustomType

@@ -1,0 +1,8 @@
+---
+# Clangd configuration
+Diagnostics:
+  UnusedIncludes: None
+  MissingIncludes: Strict
+
+CompileFlags:
+  CompilationDatabase: build
