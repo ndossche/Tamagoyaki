@@ -77,6 +77,53 @@ namespace mlir::tamagoyaki {
 
 
 namespace {
+
+/// Recursively wraps all values (block arguments and operation results) in EqOps.
+/// For each value, creates an EqOp and replaces all uses of the original value
+/// with the EqOp's result.
+void wrapValuesInEqOps(Region &region, OpBuilder &builder) {
+    for (Block &block : region) {
+        // Wrap block arguments at the start of the block
+        if (!block.getArguments().empty()) {
+            builder.setInsertionPointToStart(&block);
+            for (BlockArgument arg : block.getArguments()) {
+                auto eqOp = EqOp::create(builder, arg.getLoc(), 
+                                            TypeRange{arg.getType()}, 
+                                            ValueRange{arg});
+                arg.replaceAllUsesExcept(eqOp.getResult(), eqOp);
+            }
+        }
+        
+        // Collect operations to avoid iterator invalidation when inserting
+        SmallVector<Operation*> ops;
+        for (Operation &op : block) {
+            ops.push_back(&op);
+        }
+        
+        for (Operation *op : ops) {
+            // Skip EqOp to avoid wrapping EqOp results (which would violate verification)
+            if (isa<EqOp>(op))
+                continue;
+            
+            // Recursively process nested regions first
+            for (Region &nestedRegion : op->getRegions()) {
+                wrapValuesInEqOps(nestedRegion, builder);
+            }
+            
+            // Wrap each operation result in an EqOp
+            if (op->getNumResults() > 0) {
+                builder.setInsertionPointAfter(op);
+                for (OpResult result : op->getResults()) {
+                    auto eqOp = EqOp::create(builder, result.getLoc(), 
+                                                TypeRange{result.getType()}, 
+                                                ValueRange{result});
+                    result.replaceAllUsesExcept(eqOp.getResult(), eqOp);
+                }
+            }
+        }
+    }
+}
+
     
 class TamagoyakiInsertEgraph
     : public impl::TamagoyakiInsertEgraphBase<TamagoyakiInsertEgraph> {
@@ -96,14 +143,14 @@ public:
         
         // Process each function
         for (func::FuncOp funcOp : functions) {
-            if (failed(transformFunction(funcOp))) {
+            if (failed(transformFunction(funcOp, true))) {
                 signalPassFailure();
             }
         }
     }
 
 private:
-    LogicalResult transformFunction(func::FuncOp funcOp) {
+    LogicalResult transformFunction(func::FuncOp funcOp, bool insertSingleElementEqs) {
         // Only transform single-block functions
         Region &funcBody = funcOp.getFunctionBody();
 
@@ -133,6 +180,10 @@ private:
         builder.setInsertionPoint(returnOp);
         YieldOp::create(builder, returnOp.getLoc(), returnOp.getOperands());
         returnOp.erase();
+        
+        if (insertSingleElementEqs) {
+            wrapValuesInEqOps(egraphBody, builder);
+        }
         
         // Create a new function body
         Block *newEntryBlock = builder.createBlock(
