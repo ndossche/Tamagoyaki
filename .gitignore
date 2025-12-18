@@ -1,6 +1,7 @@
 __pycache__
 mlir
 build
+.cache
 
 # Prerequisites
 *.d
