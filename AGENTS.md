@@ -1,6 +1,10 @@
 # AGENTS.md: Tamagoyaki MLIR Dialect
 
-A guide to developing the Tamagoyaki custom MLIR dialect for equivalence graph (e-graph) operations.
+A guide to developing MLIR dialects for equivalence graph (e-graph) operations in this project.
+
+This document covers:
+- **Tamagoyaki dialect**: E-graph operations (`tamagoyaki.eq`, `tamagoyaki.egraph`, `tamagoyaki.yield`)
+- **Tamatch dialect**: Pattern matching operations (example dialect)
 
 ## Operations Reference
 
@@ -173,6 +177,36 @@ tamagoyaki.yield : // empty yield
 **Example**:
 ```mlir
 func.func @tamagoyaki_types(%arg0: !tamagoyaki.custom<"10">) {
+  return
+}
+```
+
+---
+
+### tamatch.foo
+
+**Purpose**: Illustrative operation demonstrating operation definition in the Tamatch dialect.
+
+**Traits**: `Pure`, `SameOperandsAndResultType`
+
+**Signature**:
+```mlir
+%result = tamatch.foo %input : i32
+```
+
+**Definition** (`include/TamatchDialect.td:45`):
+- Takes single `i32` input operand
+- Returns `i32` result of same type
+- Pure operation (no side effects)
+- Assembly format: `%input `: ` type`
+
+**Usage**: Test/example purposes; demonstrates dialect infrastructure and multi-dialect support.
+
+**Example**:
+```mlir
+func.func @example() {
+  %0 = arith.constant 42 : i32
+  %1 = tamatch.foo %0 : i32
   return
 }
 ```
@@ -413,12 +447,13 @@ func.func @tamagoyaki_types(%arg0: !tamagoyaki.custom<"10">) {
 
 **Configure with CMake** (one-time):
 ```bash
-mkdir -p build
-cd build
 cmake -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  ..
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DPython3_EXECUTABLE=$(which python) \
+  -DCMAKE_PREFIX_PATH=$PWD/mlir \
+  -DLLVM_EXTERNAL_LIT=$(which lit) \
+  -B build \
+  -S $PWD
 ```
 
 **Build**:

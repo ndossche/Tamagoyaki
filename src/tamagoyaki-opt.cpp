@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TamagoyakiDialect.h"
+#include "TamatchDialect.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -16,13 +17,14 @@
 
 using namespace mlir;
 using namespace mlir::tamagoyaki;
+using namespace mlir::tamatch;
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
   mlir::tamagoyaki::registerPasses();
   mlir::DialectRegistry registry;
-  registry.insert<mlir::tamagoyaki::TamagoyakiDialect, mlir::arith::ArithDialect,
-                  mlir::func::FuncDialect>();
+  registry.insert<mlir::tamagoyaki::TamagoyakiDialect, mlir::tamatch::TamatchDialect,
+                  mlir::arith::ArithDialect, mlir::func::FuncDialect>();
   registerAllDialects(registry);
 
   return mlir::asMainReturnCode(
