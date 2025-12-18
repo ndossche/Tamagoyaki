@@ -1,4 +1,4 @@
-//===- PotatoDialect.cpp - Potato dialect ---------------------*- C++ -*-===//
+//===- TamagoyakiDialect.cpp - Tamagoyaki dialect ---------------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PotatoDialect.h"
+#include "TamagoyakiDialect.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
@@ -21,29 +21,29 @@
 
 
 using namespace mlir;
-using namespace mlir::potato;
+using namespace mlir::tamagoyaki;
 
-#include "PotatoDialect.cpp.inc"
+#include "TamagoyakiDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
-// Potato dialect.
+// Tamagoyaki dialect.
 //===----------------------------------------------------------------------===//
 
-void PotatoDialect::initialize() {
+void TamagoyakiDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "PotatoOps.cpp.inc"
+#include "TamagoyakiOps.cpp.inc"
 
       >();
   registerTypes();
 }
 
 //===----------------------------------------------------------------------===//
-// Potato ops
+// Tamagoyaki ops
 //===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
-#include "PotatoOps.cpp.inc"
+#include "TamagoyakiOps.cpp.inc"
 
 LogicalResult EqOp::verify() {
     if (getInputs().empty()) {
@@ -67,22 +67,22 @@ LogicalResult EqOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// Potato passes
+// Tamagoyaki passes
 //===----------------------------------------------------------------------===//
 
-namespace mlir::potato {
-#define GEN_PASS_DEF_POTATOINSERTEGRAPH
-#define GEN_PASS_DEF_POTATOSWITCHBARFOO
-#include "PotatoPasses.h.inc"
+namespace mlir::tamagoyaki {
+#define GEN_PASS_DEF_TAMAGOYAKIINSERTEGRAPH
+#define GEN_PASS_DEF_TAMAGOYAKISWITCHBARFOO
+#include "TamagoyakiPasses.h.inc"
 
 
 namespace {
     
-class PotatoInsertEgraph
-    : public impl::PotatoInsertEgraphBase<PotatoInsertEgraph> {
+class TamagoyakiInsertEgraph
+    : public impl::TamagoyakiInsertEgraphBase<TamagoyakiInsertEgraph> {
 public:
-    using impl::PotatoInsertEgraphBase<
-        PotatoInsertEgraph>::PotatoInsertEgraphBase;
+    using impl::TamagoyakiInsertEgraphBase<
+        TamagoyakiInsertEgraph>::TamagoyakiInsertEgraphBase;
     void runOnOperation() final {
         ModuleOp module = getOperation();
         
@@ -129,7 +129,7 @@ private:
         Region &egraphBody = egraphOp.getBody();
         egraphBody.takeBody(funcBody);
         
-        // Rewrite the func.return to a potato.yield
+        // Rewrite the func.return to a tamagoyaki.yield
         builder.setInsertionPoint(returnOp);
         YieldOp::create(builder, returnOp.getLoc(), returnOp.getOperands());
         returnOp.erase();
@@ -165,7 +165,7 @@ private:
     }
 };
     
-class PotatoSwitchBarFooRewriter : public OpRewritePattern<func::FuncOp> {
+class TamagoyakiSwitchBarFooRewriter : public OpRewritePattern<func::FuncOp> {
 public:
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(func::FuncOp op,
@@ -178,33 +178,33 @@ public:
   }
 };
 
-class PotatoSwitchBarFoo
-    : public impl::PotatoSwitchBarFooBase<PotatoSwitchBarFoo> {
+class TamagoyakiSwitchBarFoo
+    : public impl::TamagoyakiSwitchBarFooBase<TamagoyakiSwitchBarFoo> {
 public:
-  using impl::PotatoSwitchBarFooBase<
-      PotatoSwitchBarFoo>::PotatoSwitchBarFooBase;
+  using impl::TamagoyakiSwitchBarFooBase<
+      TamagoyakiSwitchBarFoo>::TamagoyakiSwitchBarFooBase;
   void runOnOperation() final {
     RewritePatternSet patterns(&getContext());
-    patterns.add<PotatoSwitchBarFooRewriter>(&getContext());
+    patterns.add<TamagoyakiSwitchBarFooRewriter>(&getContext());
     FrozenRewritePatternSet patternSet(std::move(patterns));
     if (failed(applyPatternsGreedily(getOperation(), patternSet)))
       signalPassFailure();
   }
 };
 } // namespace
-} // namespace mlir::potato
+} // namespace mlir::tamagoyaki
 
 //===----------------------------------------------------------------------===//
-// Potato types
+// Tamagoyaki types
 //===----------------------------------------------------------------------===//
 
 #define GET_TYPEDEF_CLASSES
-#include "PotatoTypes.cpp.inc"
+#include "TamagoyakiTypes.cpp.inc"
 
-void PotatoDialect::registerTypes() {
+void TamagoyakiDialect::registerTypes() {
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "PotatoTypes.cpp.inc"
+#include "TamagoyakiTypes.cpp.inc"
 
       >();
 }

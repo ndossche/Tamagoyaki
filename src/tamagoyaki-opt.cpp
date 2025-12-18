@@ -1,4 +1,4 @@
-//===- potato-opt.cpp ------------------------------------------*- C++ -*-===//
+//===- tamagoyaki-opt.cpp ------------------------------------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PotatoDialect.h"
+#include "TamagoyakiDialect.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -15,16 +15,16 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
 using namespace mlir;
-using namespace mlir::potato;
+using namespace mlir::tamagoyaki;
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
-  mlir::potato::registerPasses();
+  mlir::tamagoyaki::registerPasses();
   mlir::DialectRegistry registry;
-  registry.insert<mlir::potato::PotatoDialect, mlir::arith::ArithDialect,
+  registry.insert<mlir::tamagoyaki::TamagoyakiDialect, mlir::arith::ArithDialect,
                   mlir::func::FuncDialect>();
   registerAllDialects(registry);
 
   return mlir::asMainReturnCode(
-      mlir::MlirOptMain(argc, argv, "Potato optimizer driver\n", registry));
+      mlir::MlirOptMain(argc, argv, "Tamagoyaki optimizer driver\n", registry));
 }

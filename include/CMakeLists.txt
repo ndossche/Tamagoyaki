@@ -1,5 +1,5 @@
-set(dialect Potato)
-set(dialect_namespace potato)
+set(dialect Tamagoyaki)
+set(dialect_namespace tamagoyaki)
 set(LLVM_TARGET_DEFINITIONS ${dialect}Dialect.td)
 
 mlir_tablegen(${dialect}Ops.h.inc -gen-op-decls)
@@ -18,7 +18,7 @@ set(DIALECT_H_INC_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
 mlir_tablegen(${dialect}Dialect.cpp.inc -gen-dialect-defs
               -dialect=${dialect_namespace})
 set(DIALECT_CPP_INC_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
-mlir_tablegen(PotatoPasses.h.inc --gen-pass-decls)
+mlir_tablegen(TamagoyakiPasses.h.inc --gen-pass-decls)
 set(PASS_H_INC_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
 
 add_public_tablegen_target(MLIR${dialect}IncGen)
@@ -30,7 +30,7 @@ set(generated_files
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Types.cpp.inc
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Dialect.h.inc
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Dialect.cpp.inc
-  ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}PotatoPasses.h.inc
+  ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}TamagoyakiPasses.h.inc
 )
 
 # copy generated files from build dir to here

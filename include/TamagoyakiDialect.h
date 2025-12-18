@@ -1,4 +1,4 @@
-//===- PotatoDialect.h - Potato dialect -----------------------*- C++ -*-===//
+//===- TamagoyakiDialect.h - Tamagoyaki dialect -----------------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef POTATO_POTATODIALECT_H
-#define POTATO_POTATODIALECT_H
+#ifndef TAMAGOYAKI_TAMAGOYAKIDIALECT_H
+#define TAMAGOYAKI_TAMAGOYAKIDIALECT_H
 
 #include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -19,20 +19,20 @@
 
 #include <memory>
 
-#include "PotatoDialect.h.inc"
+#include "TamagoyakiDialect.h.inc"
 
 #define GET_OP_CLASSES
-#include "PotatoOps.h.inc"
+#include "TamagoyakiOps.h.inc"
 
-namespace mlir::potato {
+namespace mlir::tamagoyaki {
 #define GEN_PASS_DECL
-#include "PotatoPasses.h.inc"
+#include "TamagoyakiPasses.h.inc"
 
 #define GEN_PASS_REGISTRATION
-#include "PotatoPasses.h.inc"
-} // namespace mlir::potato
+#include "TamagoyakiPasses.h.inc"
+} // namespace mlir::tamagoyaki
 
 #define GET_TYPEDEF_CLASSES
-#include "PotatoTypes.h.inc"
+#include "TamagoyakiTypes.h.inc"
 
-#endif // POTATO_POTATODIALECT_H
+#endif // TAMAGOYAKI_TAMAGOYAKIDIALECT_H

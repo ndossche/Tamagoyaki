@@ -1,4 +1,4 @@
-//===-- PotatoOps.td - Python bindings for potato --*- tablegen -*-===//
+//===-- TamagoyakiOps.td - Python bindings for tamagoyaki --*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,9 @@
 //
 //===---------------------------------------------------------------------===//
 
-#ifndef PYTHON_BINDINGS_POTATO_OPS
-#define PYTHON_BINDINGS_POTATO_OPS
+#ifndef PYTHON_BINDINGS_TAMAGOYAKI_OPS
+#define PYTHON_BINDINGS_TAMAGOYAKI_OPS
 
-include "PotatoDialect.td"
+include "TamagoyakiDialect.td"
 
 #endif

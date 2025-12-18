@@ -106,7 +106,7 @@ jobs:
       - name: Build and test with CMake/lit
         run: |
 
-          pushd build && ninja check-potato && popd
+          pushd build && ninja check-tamagoyaki && popd
           rm -rf build
 
       - name: Build and test using setup.py

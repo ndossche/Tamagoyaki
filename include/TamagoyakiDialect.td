@@ -1,4 +1,4 @@
-//===- PotatoDialect.td - Potato dialect -----------------*- tablegen -*-===//
+//===- TamagoyakiDialect.td - Tamagoyaki dialect -----------------*- tablegen -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef POTATO_DIALECT
-#define POTATO_DIALECT
+#ifndef TAMAGOYAKI_DIALECT
+#define TAMAGOYAKI_DIALECT
 
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -17,18 +17,18 @@ include "mlir/Pass/PassBase.td"
 include "mlir/IR/AttrTypeBase.td"
 
 //===----------------------------------------------------------------------===//
-// Potato dialect definition.
+// Tamagoyaki dialect definition.
 //===----------------------------------------------------------------------===//
 
-def Potato_Dialect : Dialect {
-    let name = "potato";
-    let summary = "A potato out-of-tree MLIR dialect.";
+def Tamagoyaki_Dialect : Dialect {
+    let name = "tamagoyaki";
+    let summary = "A tamagoyaki out-of-tree MLIR dialect.";
     let description = [{
         This dialect is an example of an out-of-tree MLIR dialect designed to
         illustrate the basic setup required to develop MLIR-based tools without
         working inside of the LLVM source tree.
     }];
-    let cppNamespace = "::mlir::potato";
+    let cppNamespace = "::mlir::tamagoyaki";
 
     let useDefaultTypePrinterParser = 1;
     let extraClassDeclaration = [{
@@ -37,20 +37,20 @@ def Potato_Dialect : Dialect {
 }
 
 //===----------------------------------------------------------------------===//
-// Base potato operation definition.
+// Base tamagoyaki operation definition.
 //===----------------------------------------------------------------------===//
 
-class Potato_Op<string mnemonic, list<Trait> traits = []> :
-        Op<Potato_Dialect, mnemonic, traits>;
+class Tamagoyaki_Op<string mnemonic, list<Trait> traits = []> :
+        Op<Tamagoyaki_Dialect, mnemonic, traits>;
 
 //===----------------------------------------------------------------------===//
-// Potato Operations
+// Tamagoyaki Operations
 //===----------------------------------------------------------------------===//
 
-def Potato_FooOp : Potato_Op<"foo", [Pure, SameOperandsAndResultType]> {
+def Tamagoyaki_FooOp : Tamagoyaki_Op<"foo", [Pure, SameOperandsAndResultType]> {
     let summary = "Illustrates how to define an operation.";
     let description = [{
-        The `potato.foo` operation illustrates how to define a new
+        The `tamagoyaki.foo` operation illustrates how to define a new
         operation in a dialect. It uses an operation trait to declare that it
         has no side effects.
 
@@ -61,7 +61,7 @@ def Potato_FooOp : Potato_Op<"foo", [Pure, SameOperandsAndResultType]> {
         ```mlir
         %0 = arith.constant 2 : i32
         // Apply the foo operation to %0
-        %1 = potato.foo %0 : i32
+        %1 = tamagoyaki.foo %0 : i32
         ```
     }];
 
@@ -74,13 +74,13 @@ def Potato_FooOp : Potato_Op<"foo", [Pure, SameOperandsAndResultType]> {
 }
 
 // definition of the YieldOp (eqsat.yield)
-def Potato_YieldOp : Potato_Op<"yield", [
+def Tamagoyaki_YieldOp : Tamagoyaki_Op<"yield", [
     Terminator, 
     HasParent<"EGraphOp">
 ]> {
     let summary = "Yield values from an egraph region";
     let description = [{
-        The `potato.yield` operation yields values from a `potato.egraph` region.
+        The `tamagoyaki.yield` operation yields values from a `tamagoyaki.egraph` region.
         It serves as the terminator for the egraph block.
     }];
 
@@ -90,7 +90,7 @@ def Potato_YieldOp : Potato_Op<"yield", [
         $values `:` type($values) attr-dict
     }];
     
-    // This allows SingleBlockImplicitTerminator to build 'potato.yield'
+    // This allows SingleBlockImplicitTerminator to build 'tamagoyaki.yield'
     // without arguments when closing the block.
     let builders = [
         OpBuilder<(ins), [{ return; }]>
@@ -98,13 +98,13 @@ def Potato_YieldOp : Potato_Op<"yield", [
 
 }
 
-def Potato_EGraphOp : Potato_Op<"egraph", [
-    // Ensures the region has one block and ends with a potato.yield
+def Tamagoyaki_EGraphOp : Tamagoyaki_Op<"egraph", [
+    // Ensures the region has one block and ends with a tamagoyaki.yield
     SingleBlockImplicitTerminator<"YieldOp">,
  ]> {
     let summary = "An e-graph region operation";
     let description = [{
-        The `potato.egraph` operation contains a single-block region in which
+        The `tamagoyaki.egraph` operation contains a single-block region in which
         equivalence classes and other operations are defined. Importantly,
         operations in the region are unordered, value uses can come before
         their definitions.
@@ -119,7 +119,7 @@ def Potato_EGraphOp : Potato_Op<"egraph", [
     }];
 }
 
-def Potato_EqOp : Potato_Op<"eq", [
+def Tamagoyaki_EqOp : Tamagoyaki_Op<"eq", [
     Pure, 
     SameOperandsAndResultType,
 ]> {
@@ -150,13 +150,13 @@ def Potato_EqOp : Potato_Op<"eq", [
 // Other Definitions
 //===----------------------------------------------------------------------===//
 
-def PotatoInsertEgraph : Pass<"potato-insert-egraph", "::mlir::ModuleOp"> {
-  let summary = "Replaces a function body with a potato.egraph operation.";
-  let dependentDialects = ["::mlir::potato::PotatoDialect", "::mlir::func::FuncDialect"];
+def TamagoyakiInsertEgraph : Pass<"tamagoyaki-insert-egraph", "::mlir::ModuleOp"> {
+  let summary = "Replaces a function body with a tamagoyaki.egraph operation.";
+  let dependentDialects = ["::mlir::tamagoyaki::TamagoyakiDialect", "::mlir::func::FuncDialect"];
 }
   
 
-def PotatoSwitchBarFoo: Pass<"potato-switch-bar-foo", "::mlir::ModuleOp"> {
+def TamagoyakiSwitchBarFoo: Pass<"tamagoyaki-switch-bar-foo", "::mlir::ModuleOp"> {
   let summary = "Switches the name of a FuncOp named `bar` to `foo` and folds.";
   let description = [{
     Switches the name of a FuncOp named `bar` to `foo` and folds.
@@ -172,16 +172,16 @@ def PotatoSwitchBarFoo: Pass<"potato-switch-bar-foo", "::mlir::ModuleOp"> {
   }];
 }
 
-class Potato_Type<string name, string typeMnemonic, list<Trait> traits = []>
-    : TypeDef<Potato_Dialect, name, traits> {
+class Tamagoyaki_Type<string name, string typeMnemonic, list<Trait> traits = []>
+    : TypeDef<Tamagoyaki_Dialect, name, traits> {
   let mnemonic = typeMnemonic;
 }
 
-def Potato_CustomType : Potato_Type<"Custom", "custom"> {
-    let summary = "Potato custom type";
-    let description = "Custom type in potato dialect";
+def Tamagoyaki_CustomType : Tamagoyaki_Type<"Custom", "custom"> {
+    let summary = "Tamagoyaki custom type";
+    let description = "Custom type in tamagoyaki dialect";
     let parameters = (ins StringRefParameter<"the custom value">:$value);
     let assemblyFormat = "`<` $value `>`";
 }
 
-#endif // POTATO_DIALECT
+#endif // TAMAGOYAKI_DIALECT

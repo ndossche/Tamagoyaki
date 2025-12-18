@@ -3,12 +3,12 @@
 config.llvm_tools_dir = lit_config.substitute("@LLVM_TOOLS_DIR@")
 config.mlir_obj_dir = "@MLIR_BINARY_DIR@"
 config.enable_bindings_python = @MLIR_ENABLE_BINDINGS_PYTHON@
-config.potato_obj_root = "@POTATO_BINARY_DIR@"
-config.potato_src_root = "@POTATO_SOURCE_DIR@"
+config.tamagoyaki_obj_root = "@TAMAGOYAKI_BINARY_DIR@"
+config.tamagoyaki_src_root = "@TAMAGOYAKI_SOURCE_DIR@"
 config.llvm_shlib_ext = "@SHLIBEXT@"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
 
 # Let the main config do the real work.
-lit_config.load_config(config, "@POTATO_SOURCE_DIR@/test/lit.cfg.py")
+lit_config.load_config(config, "@TAMAGOYAKI_SOURCE_DIR@/test/lit.cfg.py")

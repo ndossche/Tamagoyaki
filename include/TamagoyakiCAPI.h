@@ -1,4 +1,4 @@
-//===- PotatoCAPI.h - CAPI for potato dialect -------------------*- C -*-===//
+//===- TamagoyakiCAPI.h - CAPI for tamagoyaki dialect -------------------*- C -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef POTATO_C_DIALECTS_H
-#define POTATO_C_DIALECTS_H
+#ifndef TAMAGOYAKI_C_DIALECTS_H
+#define TAMAGOYAKI_C_DIALECTS_H
 
 #include "mlir-c/IR.h"
 
@@ -15,18 +15,18 @@
 extern "C" {
 #endif
 
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Potato, potato);
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Tamagoyaki, tamagoyaki);
 
 //===---------------------------------------------------------------------===//
 // CustomType
 //===---------------------------------------------------------------------===//
 
-MLIR_CAPI_EXPORTED bool mlirTypeIsAPotatoCustomType(MlirType type);
+MLIR_CAPI_EXPORTED bool mlirTypeIsATamagoyakiCustomType(MlirType type);
 
-MLIR_CAPI_EXPORTED MlirType mlirPotatoCustomTypeGet(MlirContext ctx, MlirStringRef value);
+MLIR_CAPI_EXPORTED MlirType mlirTamagoyakiCustomTypeGet(MlirContext ctx, MlirStringRef value);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // POTATO_C_DIALECTS_H
+#endif // TAMAGOYAKI_C_DIALECTS_H

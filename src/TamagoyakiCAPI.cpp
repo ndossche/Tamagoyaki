@@ -6,23 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PotatoCAPI.h"
+#include "TamagoyakiCAPI.h"
 
-#include "PotatoDialect.h"
+#include "TamagoyakiDialect.h"
 
 #include "mlir/CAPI/Registration.h"
 
-MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Potato, potato,
-                                      mlir::potato::PotatoDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Tamagoyaki, tamagoyaki,
+                                      mlir::tamagoyaki::TamagoyakiDialect)
 
 //===---------------------------------------------------------------------===//
 // CustomType
 //===---------------------------------------------------------------------===//
 
-bool mlirTypeIsAPotatoCustomType(MlirType type) {
-  return llvm::isa<mlir::potato::CustomType>(unwrap(type));
+bool mlirTypeIsATamagoyakiCustomType(MlirType type) {
+  return llvm::isa<mlir::tamagoyaki::CustomType>(unwrap(type));
 }
 
-MlirType mlirPotatoCustomTypeGet(MlirContext ctx, MlirStringRef value) {
-  return wrap(mlir::potato::CustomType::get(unwrap(ctx), unwrap(value)));
+MlirType mlirTamagoyakiCustomTypeGet(MlirContext ctx, MlirStringRef value) {
+  return wrap(mlir::tamagoyaki::CustomType::get(unwrap(ctx), unwrap(value)));
 }
