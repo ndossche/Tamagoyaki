@@ -8,6 +8,7 @@
 
 #include "TamatchDialect.h"
 
+#include "TamagoyakiDialect.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -15,12 +16,15 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Value.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
 #include <utility>
 
 using namespace mlir;
@@ -65,17 +69,11 @@ void TamatchDialect::printType(Type type, DialectAsmPrinter &os) const {
 namespace mlir::tamatch {
 
 // Custom creator function for PDL patterns
-static Operation *customCreate(PatternRewriter &rewriter, Operation *op) {
-  auto resultTypes = op->getResultTypes();
-  if (resultTypes.empty())
-    return nullptr;
-  return tamatch::FooOp::create(rewriter, op->getLoc(), resultTypes[0],
-                                op->getOperands()[0]);
-}
-
-// Custom rewriter function for PDL patterns
-static void customRewriter(PatternRewriter &rewriter, Operation *root) {
-  rewriter.eraseOp(root);
+static SmallVector<Value> getEqVals(PatternRewriter &rewriter, Value val) {
+  if (val.hasOneUse() && dyn_cast<tama::EqOp>(*val.user_begin())) {
+    return llvm::to_vector(val.user_begin()->getOperands());
+  }
+  return {val};
 }
 
 #define GEN_PASS_DEF_TAMATCHTESTPASS
@@ -108,8 +106,7 @@ struct TamatchTestPass : public impl::TamatchTestPassBase<TamatchTestPass> {
     PDLPatternModule pdlPattern(patternModule);
 
     // Register custom rewrite functions
-    pdlPattern.registerRewriteFunction("creator", customCreate);
-    pdlPattern.registerRewriteFunction("rewriter", customRewriter);
+    pdlPattern.registerRewriteFunction("get_eq_vals", getEqVals);
     patternList.add(std::move(pdlPattern));
 
     // Apply patterns greedily to the IR module
