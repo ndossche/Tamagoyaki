@@ -10,7 +10,12 @@
 
 #include "TamagoyakiDialect.h"
 
+#include "mlir-c/IR.h"
+#include "mlir-c/Support.h"
+#include "mlir/CAPI/IR.h"
 #include "mlir/CAPI/Registration.h"
+#include "mlir/CAPI/Support.h"
+#include "llvm/Support/Casting.h"
 
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Tama, tama, mlir::tama::TamaDialect)
 
