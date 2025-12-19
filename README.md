@@ -4,7 +4,7 @@
 
 # Tamagoyaki
 
-[![Nightly Test](https://github.com/makslevental/mmlir/actions/workflows/test.yml/badge.svg)](https://github.com/jumerckx/tamagoyaki/actions/workflows/test.yml)
+[![Nightly Test](https://github.com/jumerckx/tamagoyaki/actions/workflows/test.yml/badge.svg)](https://github.com/jumerckx/tamagoyaki/actions/workflows/test.yml)
 
 This repo demos a slightly unconventional way to bootstrap an MLIR project:
 
