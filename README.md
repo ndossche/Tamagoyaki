@@ -6,28 +6,61 @@
 
 [![Nightly Test](https://github.com/jumerckx/tamagoyaki/actions/workflows/test.yml/badge.svg)](https://github.com/jumerckx/tamagoyaki/actions/workflows/test.yml)
 
-This repo demos a slightly unconventional way to bootstrap an MLIR project:
+Tamagoyaki is an MLIR-based framework for encoding e-graphs directly in IR, and running equality saturation.
+It builds on the [`pdl` dialect](https://mlir.llvm.org/docs/Dialects/PDLOps/) for rewrite pattern definitions.
 
-1. It relies on https://makslevental.github.io/wheels for the upstream distribution of MLIR
-2. It smashes all the include headers into a single header [include/TamagoyakiDialect.h](include/TamagoyakiDialect.h) and all the tablegen into a single [include/TamagoyakiDialect.td](include/TamagoyakiDialect.td) and *also emits all the tablegen into the source tree itself*;
-   1. I think seeing the emitted tablegen is useful for demystifying how MLIR works
-3. It smashes all the implementation into a single [src/TamagoyakiDialect.cpp](src/TamagoyakiDialect.cpp)
-4. Python bindings @ [python/mmlir/dialects](python/mmlir/dialects) are arranged to have generated artifacts to be dumped in place.
+## Dialects
 
-It is primarily meant to be used as a learning aid (e.g., for understanding which parts of the upstream CMake are essential and which aren't) and not as a germ/seed/cookiecutter for a production quality project.
+### `tama` Dialect
 
-# Building and exercising
+The `tama` dialect provides three core operations for representing and manipulating e-graphs:
 
-You can either use CMake to build and run lit tests or you can `pip install` and run [test/python/smoketest.py](test/python/smoketest.py).
-Note, `pip install -r requirements.txt` is required either way and `pip download mlir -f https://makslevental.github.io/wheels` in order to get the `mlir` distribution package.
+- **`tama.egraph`**: Defines an e-graph region—a single-block region containing unordered operations and equivalence classes
+- **`tama.eq`**: Represents an equivalence class containing a set of equivalent values
+- **`tama.yield`**: Terminator operation for `tama.egraph` regions
 
-A minimal CMake might look like:
+Example:
 
-```shell 
+```mlir
+func.func @main(%a: i32) -> (i32, i32) {
+  %res:2 = tama.egraph %a : i32 -> i32, i32 {
+  ^bb0(%b: i32):
+    %b_eclass = tama.eq %b : i32
+    %one = arith.constant 1 : i32
+    %one_eclass = tama.eq %one : i32
+    %add = arith.addi %b_eclass, %one_eclass : i32
+    %add_eclass = tama.eq %add : i32
+    tama.yield %one_eclass, %add_eclass : i32, i32
+  }
+  return %res#0, %res#1 : i32, i32
+}
+```
+
+The dialect also provides the `-tama-insert-egraph` pass, which transforms a module by:
+- Inserting a `tama.egraph` operation in every single-block `func.func`
+- Wrapping all values and operands in `tama.eq` operations
+
+### `tamatch` Dialect
+
+The `tamatch` dialect extends the `pdl_interp` dialect to support e-matching for equality saturation. (Details are still in development.)
+
+## Building
+
+### Prerequisites
+
+This project uses [mlir-wheels](https://makslevental.github.io/wheels) for MLIR distribution. Install dependencies with:
+
+```shell
 pip install -r requirements.txt
 pip download mlir -f https://makslevental.github.io/wheels
 unzip mlir-*.whl
+```
 
+### CMake Configuration
+
+Configure the build with:
+
+```shell
 cmake -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DPython3_EXECUTABLE=$(which python) \
@@ -37,9 +70,15 @@ cmake -G Ninja \
   -S $PWD
 ```
 
-and then just do `pushd build && ninja check-tamagoyaki && popd`.
+### Running Tests
 
-Alternatively you can `pip install`, e.g., `pip install . -v --no-build-isolation` and then `pushd test/python && pthon smoketest.py && popd`.
+Build and run the test suite:
 
-If something isn't working you're probably missing `ninja` or `CMake` or you haven't done `pip install -r requirements.txt`.
-My recommendation is to go to the tests/GitHub actions and see how they're run since they run consistently.
+```shell
+cd build
+ninja check-tamagoyaki
+```
+
+## About
+
+This project's build configuration is based on [Max Levental](https://makslevental.github.io/about/)'s [mmlir](https://github.com/makslevental/mmlir) example repository.
