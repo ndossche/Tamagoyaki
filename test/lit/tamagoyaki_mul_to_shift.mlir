@@ -48,7 +48,11 @@ module @patterns {
         ^bb14:  // pred: ^bb13
             pdl_interp.check_attribute %6 is 2 : i32 -> ^bb15, ^bb_continue
         ^bb15:  // pred: ^bb14
-            %7 = pdl_interp.get_result 0 of %op
+            %orig_7 = pdl_interp.get_result 0 of %op
+            
+            //%7 = tamatch.eq_result %orig_7 : !pdl.value
+            %7 = pdl_interp.apply_rewrite "get_eq_result"(%orig_7 : !pdl.value) : !pdl.value
+            
             pdl_interp.is_not_null %7 : !pdl.value -> ^bb16, ^bb_continue
         ^bb16:  // pred: ^bb15
             pdl_interp.are_equal %7, %0 : !pdl.value -> ^bb17, ^bb_continue
@@ -78,6 +82,20 @@ module @patterns {
 }
 
 module @ir {
+
+// CHECK:      func.func @main(%arg0: i32) -> i32 {
+// CHECK-NEXT:   %0 = tama.egraph %arg0 : i32 -> i32 {
+// CHECK-NEXT:   ^bb0(%arg1: i32):
+// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
+// CHECK-NEXT:     %1 = tama.eq %arg1 : i32
+// CHECK-NEXT:     %2 = arith.shli %1, %c1_i32 : i32
+// CHECK-NEXT:     %3 = "test.op"() : () -> i32
+// CHECK-NEXT:     %4 = tama.eq %3, %2 : i32
+// CHECK-NEXT:     tama.yield %4 : i32
+// CHECK-NEXT:   }
+// CHECK-NEXT:   return %0 : i32
+// CHECK-NEXT: }
+
     func.func @main(%arg0: i32) -> i32 {
         %0 = tama.egraph %arg0 : i32 -> i32 {
             ^bb0(%arg1: i32):

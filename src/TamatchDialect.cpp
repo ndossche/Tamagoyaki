@@ -76,6 +76,12 @@ static SmallVector<Value> getEqVals(PatternRewriter &rewriter, Value val) {
   return {val};
 }
 
+static Value getEqResult(PatternRewriter &rewriter, Value val) {
+  auto eqOp = dyn_cast<tama::EqOp>(*val.user_begin());
+  if (val.hasOneUse() && eqOp) {
+    return eqOp.getResult();
+  }
+  return val;
 }
 
 #define GEN_PASS_DEF_TAMATCHTESTPASS
@@ -109,6 +115,7 @@ struct TamatchTestPass : public impl::TamatchTestPassBase<TamatchTestPass> {
 
     // Register custom rewrite functions
     pdlPattern.registerRewriteFunction("get_eq_vals", getEqVals);
+    pdlPattern.registerRewriteFunction("get_eq_result", getEqResult);
     patternList.add(std::move(pdlPattern));
 
     // Apply patterns greedily to the IR module
