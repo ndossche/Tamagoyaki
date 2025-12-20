@@ -70,10 +70,12 @@ namespace mlir::tamatch {
 
 // Custom creator function for PDL patterns
 static SmallVector<Value> getEqVals(PatternRewriter &rewriter, Value val) {
-  if (val.hasOneUse() && dyn_cast<tama::EqOp>(*val.user_begin())) {
-    return llvm::to_vector(val.user_begin()->getOperands());
+  if (auto eqOp = dyn_cast<tama::EqOp>(val.getDefiningOp())) {
+    return llvm::to_vector(eqOp->getOperands());
   }
   return {val};
+}
+
 }
 
 #define GEN_PASS_DEF_TAMATCHTESTPASS
