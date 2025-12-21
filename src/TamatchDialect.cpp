@@ -16,15 +16,23 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Value.h"
+#include "mlir/IR/ValueRange.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/EquivalenceClasses.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
+#include <cassert>
+#include <iostream>
+#include <ostream>
 #include <utility>
 
 using namespace mlir;
@@ -77,12 +85,84 @@ static SmallVector<Value> getEqVals(PatternRewriter &rewriter, Value val) {
 }
 
 static Value getEqResult(PatternRewriter &rewriter, Value val) {
-  auto eqOp = dyn_cast<tama::EqOp>(*val.user_begin());
-  if (val.hasOneUse() && eqOp) {
+  if (auto eqOp =
+          val.hasOneUse() ? dyn_cast<tama::EqOp>(*val.user_begin()) : nullptr) {
     return eqOp.getResult();
   }
   return val;
 }
+
+static tama::EqOp getEqOp(PatternRewriter &rewriter, Value val) {
+  if (auto eqOp =
+          val.hasOneUse() ? dyn_cast<tama::EqOp>(*val.user_begin()) : nullptr) {
+    return eqOp;
+  }
+
+  // If the value is not part of an eclass yet, create one
+  OpBuilder builder(val.getContext());
+  builder.setInsertionPointAfterValue(val);
+  auto eqOp = tama::EqOp::create(builder, val.getLoc(),
+                                 TypeRange{val.getType()}, ValueRange{val});
+  rewriter.replaceUsesWithIf(
+      val, eqOp.getResult(),
+      [&eqOp](OpOperand &operand) { return operand.getOwner() != eqOp; });
+  return eqOp;
+}
+
+class EqOpUnionFind {
+public:
+  /// Union two individual values
+  void eqUnion(PatternRewriter &rewriter, Value a, Value b) {
+    tama::EqOp eqA = getEqOp(rewriter, a);
+    tama::EqOp eqB = getEqOp(rewriter, b);
+
+    if (unionFind.isEquivalent(eqA, eqB))
+      return;
+
+    // TODO: unionSets always treats the first argument as leader
+    // this might lead to an unbalanced union-find?
+    tama::EqOp leader = *unionFind.unionSets(eqA, eqB);
+    tama::EqOp other = eqB;
+
+    // Find operands in `other` that aren't already in `leader`.
+    // Operands need to be deduplicated because it can happen that the same
+    // operand was used by different parent eclasses after their children were
+    // merged
+    SmallPtrSet<Value, 8> existing(leader->operand_begin(),
+                                   leader->operand_end());
+    SmallVector<Value, 8> newOperands;
+    for (Value operand : other->getOperands()) {
+      if (existing.insert(operand).second)
+        newOperands.push_back(operand);
+    }
+
+    // add newOperands to the end of the operand list
+    leader->setOperands(leader->getNumOperands(), 0, newOperands);
+  }
+
+  /// Union an operation's results with corresponding values
+  void eqUnion(PatternRewriter &rewriter, Operation *op, ValueRange vals) {
+    assert(op->getNumResults() == vals.size() &&
+           "Operation result count must match value range size");
+    for (auto [result, val] : llvm::zip(op->getResults(), vals))
+      eqUnion(rewriter, result, val);
+  }
+
+  /// Union two value ranges pairwise
+  void eqUnion(PatternRewriter &rewriter, ValueRange a, ValueRange b) {
+    assert(a.size() == b.size() && "Value ranges must have equal size");
+    for (auto [va, vb] : llvm::zip(a, b))
+      eqUnion(rewriter, va, vb);
+  }
+
+  /// Check if two values are in the same equivalence class
+  bool isEquivalent(tama::EqOp a, tama::EqOp b) {
+    return unionFind.isEquivalent(a, b);
+  }
+
+private:
+  llvm::EquivalenceClasses<tama::EqOp> unionFind;
+};
 
 #define GEN_PASS_DEF_TAMATCHTESTPASS
 #include "TamatchPasses.h.inc"
@@ -113,9 +193,35 @@ struct TamatchTestPass : public impl::TamatchTestPassBase<TamatchTestPass> {
     patternModule.getOperation()->remove();
     PDLPatternModule pdlPattern(patternModule);
 
+    EqOpUnionFind uf{};
+
     // Register custom rewrite functions
     pdlPattern.registerRewriteFunction("get_eq_vals", getEqVals);
     pdlPattern.registerRewriteFunction("get_eq_result", getEqResult);
+    pdlPattern.registerRewriteFunction("union", [&uf](PatternRewriter &rewriter,
+                                                      PDLResultList &results,
+                                                      ArrayRef<PDLValue> args) {
+      assert(args.size() == 2 && "union expects 2 arguments");
+
+      PDLValue arg0 = args[0];
+      PDLValue arg1 = args[1];
+
+      // Value, Value
+      if (arg0.isa<Value>() && arg1.isa<Value>()) {
+        uf.eqUnion(rewriter, arg0.cast<Value>(), arg1.cast<Value>());
+      }
+      // Operation*, ValueRange
+      else if (arg0.isa<Operation *>() && arg1.isa<ValueRange>()) {
+        uf.eqUnion(rewriter, arg0.cast<Operation *>(), arg1.cast<ValueRange>());
+      }
+      // ValueRange, ValueRange
+      else if (arg0.isa<ValueRange>() && arg1.isa<ValueRange>()) {
+        uf.eqUnion(rewriter, arg0.cast<ValueRange>(), arg1.cast<ValueRange>());
+      } else {
+        llvm_unreachable("union: unsupported argument types");
+      }
+      return success();
+    });
     patternList.add(std::move(pdlPattern));
 
     // Apply patterns greedily to the IR module
