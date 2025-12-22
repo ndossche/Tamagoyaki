@@ -124,6 +124,8 @@ public:
     tama::EqOp leader = *unionFind.unionSets(eqA, eqB);
     tama::EqOp other = eqB;
 
+    rewriter.replaceAllUsesWith(other.getResult(), leader.getResult());
+
     // Find operands in `other` that aren't already in `leader`.
     // Operands need to be deduplicated because it can happen that the same
     // operand was used by different parent eclasses after their children were
@@ -135,9 +137,10 @@ public:
       if (existing.insert(operand).second)
         newOperands.push_back(operand);
     }
-
     // add newOperands to the end of the operand list
     leader->setOperands(leader->getNumOperands(), 0, newOperands);
+
+    rewriter.eraseOp(other);
   }
 
   /// Union an operation's results with corresponding values
