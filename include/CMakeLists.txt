@@ -34,28 +34,34 @@ set(tama_generated_files
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}TamagoyakiPasses.h.inc
 )
 
+set(DST ${CMAKE_CURRENT_SOURCE_DIR})
+
 # copy generated files from build dir to here
 add_custom_command(
-  OUTPUT
-    ${tama_generated_files}
-  DEPENDS
-    MLIR${dialect}IncGen
-  COMMENT
-    "copying generated td files from build to src include dir"
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${OPS_H_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${OPS_CPP_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${TYPES_H_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${TYPES_CPP_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${DIALECT_H_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${DIALECT_CPP_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${PASS_H_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
+  OUTPUT ${tama_generated_files}
+  DEPENDS MLIR${dialect}IncGen
+  COMMENT "copying generated td files from build to src include dir"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${OPS_H_INC_TABLEGEN_OUTPUT}
+      ${DST}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${OPS_CPP_INC_TABLEGEN_OUTPUT}
+      ${DST}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${TYPES_H_INC_TABLEGEN_OUTPUT}
+      ${DST}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${TYPES_CPP_INC_TABLEGEN_OUTPUT}
+      ${DST}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${DIALECT_H_INC_TABLEGEN_OUTPUT}
+      ${DST}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${DIALECT_CPP_INC_TABLEGEN_OUTPUT}
+      ${DST}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${PASS_H_INC_TABLEGEN_OUTPUT}
+      ${DST}
 )
 
 add_custom_target(copy_tamagoyaki_generated_td_to_src_include DEPENDS ${tama_generated_files})
@@ -90,22 +96,24 @@ set(tamatch_generated_files
 
 # copy generated files from build dir to here
 add_custom_command(
-  OUTPUT
-    ${tamatch_generated_files}
-  DEPENDS
-    MLIR${dialect}IncGen
-  COMMENT
-    "copying generated td files from build to src include dir"
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${OPS_H_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${OPS_CPP_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${DIALECT_H_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${DIALECT_CPP_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND
-    ${CMAKE_COMMAND} -E copy ${PASS_H_INC_TABLEGEN_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}
+  OUTPUT ${tamatch_generated_files}
+  DEPENDS MLIR${dialect}IncGen
+  COMMENT "copying generated td files from build to src include dir"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${OPS_H_INC_TABLEGEN_OUTPUT}
+      ${DST}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${OPS_CPP_INC_TABLEGEN_OUTPUT}
+      ${DST}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${DIALECT_H_INC_TABLEGEN_OUTPUT}
+      ${DST}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${DIALECT_CPP_INC_TABLEGEN_OUTPUT}
+      ${DST}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${PASS_H_INC_TABLEGEN_OUTPUT}
+      ${DST}
 )
 
 add_custom_target(copy_tamatch_generated_td_to_src_include DEPENDS ${tamatch_generated_files})
