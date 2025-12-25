@@ -168,12 +168,15 @@ private:
   llvm::EquivalenceClasses<tama::EqOp> unionFind;
 };
 
-#define GEN_PASS_DEF_TAMATCHTESTPASS
+#define GEN_PASS_DEF_TAMATCHSATURATEPASS
 #include "TamatchPasses.h.inc"
 
 namespace {
-struct TamatchTestPass : public impl::TamatchTestPassBase<TamatchTestPass> {
-  using impl::TamatchTestPassBase<TamatchTestPass>::TamatchTestPassBase;
+
+struct TamatchSaturatePass
+    : public impl::TamatchSaturatePassBase<TamatchSaturatePass> {
+  using impl::TamatchSaturatePassBase<
+      TamatchSaturatePass>::TamatchSaturatePassBase;
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<mlir::pdl_interp::PDLInterpDialect>();
@@ -240,5 +243,5 @@ struct TamatchTestPass : public impl::TamatchTestPassBase<TamatchTestPass> {
 #include "TamatchPasses.h.inc"
 
 namespace mlir::tamatch {
-void registerPasses() { registerTamatchTestPass(); }
+void registerPasses() { registerTamatchSaturatePass(); }
 } // namespace mlir::tamatch
