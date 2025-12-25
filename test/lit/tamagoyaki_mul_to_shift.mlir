@@ -74,15 +74,20 @@ module @patterns {
             %1 = pdl_interp.create_type i32
             %2 = pdl_interp.create_operation "arith.constant" {"value" = %0}  -> (%1 : !pdl.type)
             %3 = pdl_interp.get_result 0 of %2
+             
             %4 = pdl_interp.create_operation "arith.shli"(%arg0, %3 : !pdl.value, !pdl.value)  -> (%1 : !pdl.type)
+            
+            // %4 = tamatch.dedup(%orig_4)
+            //%4 = pdl_interp.apply_rewrite "dedup"(%orig_4 : !pdl.operation) : !pdl.operation
+            
             %5 = pdl_interp.get_results of %4 : !pdl.range<value>
             // pdl_interp.replace %arg1 with (%5 : !pdl.range<value>)
             // becomes:
             // tamatch.union(%arg1, %5)
             pdl_interp.apply_rewrite "union"(%arg1, %5 : !pdl.operation, !pdl.range<value>)
-            
             // TODO: note that if the result of the operation (%5) would be used in the further rewrite, this would be incorrect.
             // After a union, uses of the result should be rerouted to the EqOp result (union should return those).
+            
             pdl_interp.finalize
         }
     }
@@ -90,21 +95,21 @@ module @patterns {
 
 module @ir {
 
-// CHECK:      func.func @egraph_with_eqs(%arg0: i32) -> i32 {
-// CHECK-NEXT:   %0 = tama.egraph %arg0 : i32 -> i32 {
-// CHECK-NEXT:   ^bb0(%arg1: i32):
-// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
-// CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
-// CHECK-NEXT:     %1 = tama.eq %arg1 : i32
-// CHECK-NEXT:     %2 = tama.eq %c2_i32 : i32
-// CHECK-NEXT:     %3 = arith.shli %1, %c1_i32 : i32
-// CHECK-NEXT:     %4 = arith.muli %1, %2 : i32
-// CHECK-NEXT:     %5 = "test.op"() : () -> i32
-// CHECK-NEXT:     %6 = tama.eq %5, %4, %3 : i32
-// CHECK-NEXT:     tama.yield %6 : i32
-// CHECK-NEXT:   }
-// CHECK-NEXT:   return %0 : i32
-// CHECK-NEXT: }
+    // CHECK:      func.func @egraph_with_eqs(%arg0: i32) -> i32 {
+    // CHECK-NEXT:   %0 = tama.egraph %arg0 : i32 -> i32 {
+    // CHECK-NEXT:   ^bb0(%arg1: i32):
+    // CHECK-NEXT:     %1 = tama.eq %arg1 : i32
+    // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
+    // CHECK-NEXT:     %2 = tama.eq %c2_i32 : i32
+    // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
+    // CHECK-NEXT:     %3 = arith.shli %1, %c1_i32 : i32
+    // CHECK-NEXT:     %4 = arith.muli %1, %2 : i32
+    // CHECK-NEXT:     %5 = "test.op"() : () -> i32
+    // CHECK-NEXT:     %6 = tama.eq %5, %4, %3 : i32
+    // CHECK-NEXT:     tama.yield %6 : i32
+    // CHECK-NEXT:   }
+    // CHECK-NEXT:   return %0 : i32
+    // CHECK-NEXT: }
 
     func.func @egraph_with_eqs(%arg0: i32) -> i32 {
         %0 = tama.egraph %arg0 : i32 -> i32 {
@@ -127,10 +132,9 @@ module @ir {
     // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
     // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
     // CHECK-NEXT:     %1 = arith.shli %arg1, %c1_i32 : i32
-    // CHECK-NEXT:     %2 = arith.shli %arg1, %c1_i32 : i32
-    // CHECK-NEXT:     %3 = arith.muli %arg1, %c2_i32 : i32
-    // CHECK-NEXT:     %4 = tama.eq %3, %1, %2 : i32
-    // CHECK-NEXT:     tama.yield %4 : i32
+    // CHECK-NEXT:     %2 = arith.muli %arg1, %c2_i32 : i32
+    // CHECK-NEXT:     %3 = tama.eq %2, %1 : i32
+    // CHECK-NEXT:     tama.yield %3 : i32
     // CHECK-NEXT:   }
     // CHECK-NEXT:   return %0 : i32
     // CHECK-NEXT: }

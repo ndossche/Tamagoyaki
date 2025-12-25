@@ -64,10 +64,11 @@ module @patterns {
 }
 
 module @ir {
-    // CHECK: func.func @main(%arg0: i32) -> i32 {
-    // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
-    // CHECK-NEXT:     %0 = arith.shli %arg0, %c1_i32 : i32
-    // CHECK-NEXT:     return %0 : i32
+    // CHECK:      func.func @main(%arg0: i32) -> i32 {
+    // CHECK-NEXT:   %c2_i32 = arith.constant 2 : i32
+    // CHECK-NEXT:   %c1_i32 = arith.constant 1 : i32
+    // CHECK-NEXT:   %0 = arith.shli %arg0, %c1_i32 : i32
+    // CHECK-NEXT:   return %0 : i32
     // CHECK-NEXT: }
 
     func.func @main(%a: i32) -> i32 {
