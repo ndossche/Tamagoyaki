@@ -116,11 +116,11 @@ public:
     tama::EqOp eqA = getEqOp(rewriter, a);
     tama::EqOp eqB = getEqOp(rewriter, b);
 
-    if (unionFind.isEquivalent(eqA, eqB))
+    if (isEquivalent(eqA, eqB))
       return;
-
     // TODO: unionSets always treats the first argument as leader
     // this might lead to an unbalanced union-find?
+
     tama::EqOp leader = *unionFind.unionSets(eqA, eqB);
     tama::EqOp other = eqB;
 
@@ -140,6 +140,7 @@ public:
     // add newOperands to the end of the operand list
     leader->setOperands(leader->getNumOperands(), 0, newOperands);
 
+    unionFind.erase(other);
     rewriter.eraseOp(other);
   }
 
