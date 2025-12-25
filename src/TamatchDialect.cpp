@@ -22,6 +22,9 @@
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassOptions.h"
+#include "mlir/Rewrite/FrozenRewritePatternSet.h"
+#include "mlir/Rewrite/PatternApplicator.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/EquivalenceClasses.h"
@@ -29,6 +32,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <iostream>
@@ -173,10 +177,29 @@ private:
 
 namespace {
 
+struct NoEraseGuard : public RewriterBase::Listener {
+  void notifyOperationErased(Operation *op) override {
+    if (!dyn_cast<tama::EqOp>(*op)) {
+      op->emitError("Operations cannot be erased during equality saturation.");
+      llvm_unreachable("Operation erased against expectation.");
+    }
+  }
+};
+
 struct TamatchSaturatePass
     : public impl::TamatchSaturatePassBase<TamatchSaturatePass> {
   using impl::TamatchSaturatePassBase<
       TamatchSaturatePass>::TamatchSaturatePassBase;
+
+  TamatchSaturatePass() = default;
+  TamatchSaturatePass(const TamatchSaturatePass &pass)
+      : TamatchSaturatePassBase(pass) {}
+
+  Option<bool> verifyNoErase{
+      *this, "verify-no-erase",
+      llvm::cl::desc("Whether to throw an error when an operation is removed "
+                     "during equality saturation, defaults to true."),
+      llvm::cl::init(true)};
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<mlir::pdl_interp::PDLInterpDialect>();
@@ -231,9 +254,19 @@ struct TamatchSaturatePass
     });
     patternList.add(std::move(pdlPattern));
 
-    // Apply patterns greedily to the IR module
-    (void)applyPatternsGreedily(irModule.getBodyRegion(),
-                                std::move(patternList));
+    FrozenRewritePatternSet frozenPatterns(std::move(patternList));
+
+    PatternRewriter rewriter(module.getContext());
+    std::cout << verifyNoErase << std::endl;
+    NoEraseGuard guard;
+    if (verifyNoErase) {
+      rewriter.setListener(&guard);
+    }
+    PatternApplicator applicator(frozenPatterns);
+    applicator.applyDefaultCostModel();
+
+    irModule.walk(
+        [&](Operation *op) { (void)applicator.matchAndRewrite(op, rewriter); });
   }
 };
 } // namespace

@@ -1,4 +1,4 @@
-// RUN: tamagoyaki-opt -tamatch-test-pass %s | FileCheck %s
+// RUN: tamagoyaki-opt -tamatch-saturate="verify-no-erase=false" %s | FileCheck %s
 
 module @patterns {
     pdl_interp.func @matcher(%arg0: !pdl.operation) {

@@ -1,5 +1,4 @@
-// RUN: tamagoyaki-opt -tamatch-test-pass %s -allow-unregistered-dialect | FileCheck %s
-// XFAIL: *
+// RUN: tamagoyaki-opt -tamatch-saturate %s -allow-unregistered-dialect | FileCheck %s
 
 module @patterns {
     pdl_interp.func @matcher(%arg0: !pdl.operation) {
