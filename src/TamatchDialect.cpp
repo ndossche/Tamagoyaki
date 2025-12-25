@@ -9,6 +9,7 @@
 #include "TamatchDialect.h"
 
 #include "TamagoyakiDialect.h"
+#include "mlir/Bytecode.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -35,8 +36,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
-#include <iostream>
-#include <ostream>
 #include <utility>
 
 using namespace mlir;
@@ -257,16 +256,53 @@ struct TamatchSaturatePass
     FrozenRewritePatternSet frozenPatterns(std::move(patternList));
 
     PatternRewriter rewriter(module.getContext());
-    std::cout << verifyNoErase << std::endl;
     NoEraseGuard guard;
     if (verifyNoErase) {
       rewriter.setListener(&guard);
     }
-    PatternApplicator applicator(frozenPatterns);
-    applicator.applyDefaultCostModel();
 
-    irModule.walk(
-        [&](Operation *op) { (void)applicator.matchAndRewrite(op, rewriter); });
+    // Structure to hold deferred matches
+    struct PendingMatch {
+      Operation *op;
+      mlir::detail::PDLByteCode::MatchResult matchResult;
+    };
+    SmallVector<PendingMatch> allMatches;
+
+    const auto *bytecode = frozenPatterns.getPDLByteCode();
+    if (!bytecode) {
+      // No PDL patterns found
+      return;
+    }
+
+    // Initialize the mutable state for the bytecode interpreter.
+    // This manages memory for matches. Crucially, we keep this alive
+    // between the Match phase and the Rewrite phase.
+    mlir::detail::PDLByteCodeMutableState bytecodeState;
+    bytecode->initializeMutableState(bytecodeState);
+
+    // Walk the IR and collect ALL matches for ALL operations.
+    irModule.walk([&](Operation *op) {
+      SmallVector<mlir::detail::PDLByteCode::MatchResult, 4> opMatches;
+
+      // Execute the bytecode matcher.
+      // matches are allocated in bytecodeState and pointers are stored in
+      // opMatches.
+      bytecode->match(op, rewriter, opMatches, bytecodeState);
+
+      for (auto &match : opMatches) {
+        allMatches.push_back({op, std::move(match)});
+      }
+    });
+
+    // Apply rewrites for all collected matches.
+    for (const auto &pm : allMatches) {
+      // Set insertion point to the matched operation (standard PDL behavior)
+      rewriter.setInsertionPoint(pm.op);
+
+      // Execute the rewrite. This will trigger the registered "union" callback.
+      // We pass the same bytecodeState so it can access captured values.
+      (void)bytecode->rewrite(rewriter, pm.matchResult, bytecodeState);
+    }
   }
 };
 } // namespace
