@@ -10,6 +10,7 @@
 
 #include "TamagoyakiDialect.h"
 #include "mlir/Bytecode.h"
+#include "mlir/CSE.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -22,6 +23,7 @@
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/MutableScopedHashTable.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassOptions.h"
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
@@ -32,11 +34,19 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Allocator.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/RecyclingAllocator.h"
 #include <cassert>
+#include <functional>
+#include <iostream>
+#include <ostream>
 #include <utility>
+
+#define DEBUG_TYPE "tamatch"
 
 using namespace mlir;
 using namespace mlir::tamatch;
@@ -143,7 +153,7 @@ public:
     // add newOperands to the end of the operand list
     leader->setOperands(leader->getNumOperands(), 0, newOperands);
 
-    unionFind.erase(other);
+    erase(other); // remove from union-find
     rewriter.eraseOp(other);
   }
 
@@ -167,6 +177,8 @@ public:
     return unionFind.isEquivalent(a, b);
   }
 
+  void erase(tama::EqOp op) { unionFind.erase(op); }
+
 private:
   llvm::EquivalenceClasses<tama::EqOp> unionFind;
 };
@@ -183,6 +195,44 @@ struct NoEraseGuard : public RewriterBase::Listener {
       llvm_unreachable("Operation erased against expectation.");
     }
   }
+
+  void notifyOperationModified(Operation *op) override {
+    LLVM_DEBUG(llvm::dbgs() << "notifyOperationModified: " << *op << "\n");
+  }
+};
+
+using AllocatorTy = llvm::RecyclingAllocator<
+    llvm::BumpPtrAllocator,
+    mlir::tamatch::MutableScopedHashTableVal<Operation *, Operation *>>;
+
+using ScopedMapTy = MutableScopedHashTable<Operation *, Operation *,
+                                           SimpleOperationInfo, AllocatorTy>;
+
+class HashConsPatternRewriter : public PatternRewriter {
+public:
+  using PatternRewriter::PatternRewriter;
+
+  void startOpModification(Operation *op) override {
+    LLVM_DEBUG(llvm::dbgs()
+               << "operation being modified (start): " << *op << "\n");
+    hashcons.erase(op);
+  }
+
+  void cancelOpModification(Operation *op) override {
+    LLVM_DEBUG(llvm::dbgs()
+               << "operation being modified (cancel): " << *op << "\n");
+    hashcons.insert(op, op);
+  }
+
+  void finalizeOpModification(Operation *op) override {
+    LLVM_DEBUG(llvm::dbgs()
+               << "operation being modified (finalize): " << *op << "\n");
+    hashcons.insert(op, op);
+    if (auto *rewriteListener = dyn_cast_if_present<Listener>(listener))
+      rewriteListener->notifyOperationModified(op);
+  }
+
+  ScopedMapTy hashcons;
 };
 
 struct TamatchSaturatePass
@@ -223,6 +273,16 @@ struct TamatchSaturatePass
     PDLPatternModule pdlPattern(patternModule);
 
     EqOpUnionFind uf{};
+    HashConsPatternRewriter rewriter(module.getContext());
+    ScopedMapTy &hashcons = rewriter.hashcons;
+    ScopedMapTy::ScopeTy scope(hashcons);
+
+    irModule.walk([&](Operation *op) {
+      if (dyn_cast<tama::EqOp>(*op)) {
+        return;
+      }
+      hashcons.insert(op, op);
+    });
 
     // Register custom rewrite functions
     pdlPattern.registerRewriteFunction("get_eq_vals", getEqVals);
@@ -251,11 +311,24 @@ struct TamatchSaturatePass
       }
       return success();
     });
+    pdlPattern.registerRewriteFunction(
+        "dedup", [&hashcons](PatternRewriter &rewriter, Operation *op) {
+          if (auto *existing = hashcons.lookup(op)) {
+            LLVM_DEBUG(llvm::dbgs()
+                       << "deduplicating operation: " << *op << "\n");
+            assert(existing != op);
+            rewriter.eraseOp(op);
+            return existing;
+          }
+          LLVM_DEBUG(llvm::dbgs() << "no duplicate, inserting into hashcons: "
+                                  << *op << "\n");
+          hashcons.insert(op, op);
+          return op;
+        });
     patternList.add(std::move(pdlPattern));
 
     FrozenRewritePatternSet frozenPatterns(std::move(patternList));
 
-    PatternRewriter rewriter(module.getContext());
     NoEraseGuard guard;
     if (verifyNoErase) {
       rewriter.setListener(&guard);
