@@ -1,19 +1,15 @@
-// This file contains types defined in lib/Transforms/CSE.cpp
+// This file is adapted from mlir/CSE.h (part of the LLVM Project).
+// It contains the SimpleOperationInfo struct used for hashing operations.
 
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#ifndef MLIR_SIMPLE_OPERATION_INFO_H
+#define MLIR_SIMPLE_OPERATION_INFO_H
 
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
 #include "llvm/ADT/DenseMapInfo.h"
-#include "llvm/ADT/ScopedHashTable.h"
-#include "llvm/Support/Allocator.h"
-#include "llvm/Support/RecyclingAllocator.h"
 
-using namespace mlir;
+namespace mlir::tamatch {
 
-namespace {
 struct SimpleOperationInfo : public llvm::DenseMapInfo<Operation *> {
   static unsigned getHashValue(const Operation *opC) {
     return OperationEquivalence::computeHash(
@@ -35,4 +31,7 @@ struct SimpleOperationInfo : public llvm::DenseMapInfo<Operation *> {
         OperationEquivalence::IgnoreLocations);
   }
 };
-} // namespace
+
+} // namespace mlir::tamatch
+
+#endif // MLIR_SIMPLE_OPERATION_INFO_H

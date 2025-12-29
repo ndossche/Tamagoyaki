@@ -23,6 +23,7 @@ add_mlir_dialect_library(
 add_mlir_dialect_library(
   MLIRTamatch
   TamatchDialect.cpp
+  Utils/MutableScopedHashTable.cpp
 
   # to silence LLVMProcessSources.cmake:116
   PARTIAL_SOURCES_INTENDED
