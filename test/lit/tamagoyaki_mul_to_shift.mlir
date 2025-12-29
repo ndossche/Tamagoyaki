@@ -74,10 +74,10 @@ module @patterns {
             %2 = pdl_interp.create_operation "arith.constant" {"value" = %0}  -> (%1 : !pdl.type)
             %3 = pdl_interp.get_result 0 of %2
              
-            %4 = pdl_interp.create_operation "arith.shli"(%arg0, %3 : !pdl.value, !pdl.value)  -> (%1 : !pdl.type)
+            %orig_4 = pdl_interp.create_operation "arith.shli"(%arg0, %3 : !pdl.value, !pdl.value)  -> (%1 : !pdl.type)
             
             // %4 = tamatch.dedup(%orig_4)
-            //%4 = pdl_interp.apply_rewrite "dedup"(%orig_4 : !pdl.operation) : !pdl.operation
+            %4 = pdl_interp.apply_rewrite "dedup"(%orig_4 : !pdl.operation) : !pdl.operation
             
             %5 = pdl_interp.get_results of %4 : !pdl.range<value>
             // pdl_interp.replace %arg1 with (%5 : !pdl.range<value>)

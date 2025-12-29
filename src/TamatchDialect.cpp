@@ -16,6 +16,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeRange.h"
@@ -209,8 +210,36 @@ using ScopedMapTy = MutableScopedHashTable<Operation *, Operation *,
                                            SimpleOperationInfo, AllocatorTy>;
 
 class HashConsPatternRewriter : public PatternRewriter {
+  struct HashConsListener : public RewriterBase::ForwardingListener {
+    HashConsListener(ScopedMapTy &hashcons,
+                     OpBuilder::Listener *listener = nullptr)
+        : ForwardingListener(listener), hashcons(hashcons),
+          underlyingListener(listener) {}
+
+    void notifyOperationErased(Operation *op) override {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "HashConsListener::notifyOperationErased: " << *op << "\n");
+      hashcons.erase(op);
+      ForwardingListener::notifyOperationErased(op);
+    }
+
+    void setUnderlyingListener(OpBuilder::Listener *listener) {
+      underlyingListener = listener;
+      // Reinitialize the base class with the new listener
+      this->~HashConsListener();
+      new (this) HashConsListener(hashcons, listener);
+    }
+
+  private:
+    ScopedMapTy &hashcons;
+    OpBuilder::Listener *underlyingListener = nullptr;
+  };
+
 public:
-  using PatternRewriter::PatternRewriter;
+  explicit HashConsPatternRewriter(MLIRContext *ctx)
+      : PatternRewriter(ctx), hashConsListener(hashcons) {
+    setListener(&hashConsListener);
+  }
 
   void startOpModification(Operation *op) override {
     LLVM_DEBUG(llvm::dbgs()
@@ -228,11 +257,19 @@ public:
     LLVM_DEBUG(llvm::dbgs()
                << "operation being modified (finalize): " << *op << "\n");
     hashcons.insert(op, op);
-    if (auto *rewriteListener = dyn_cast_if_present<Listener>(listener))
-      rewriteListener->notifyOperationModified(op);
+    PatternRewriter::finalizeOpModification(op);
+  }
+
+  /// Set an underlying listener that will receive forwarded notifications
+  /// in addition to the hashcons listener's own handling.
+  void setUnderlyingListener(OpBuilder::Listener *listener) {
+    hashConsListener.setUnderlyingListener(listener);
   }
 
   ScopedMapTy hashcons;
+
+private:
+  HashConsListener hashConsListener;
 };
 
 struct TamatchSaturatePass
@@ -331,7 +368,7 @@ struct TamatchSaturatePass
 
     NoEraseGuard guard;
     if (verifyNoErase) {
-      rewriter.setListener(&guard);
+      rewriter.setUnderlyingListener(&guard);
     }
 
     // Structure to hold deferred matches
