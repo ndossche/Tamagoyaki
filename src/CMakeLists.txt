@@ -24,6 +24,8 @@ add_mlir_dialect_library(
   MLIRTamatch
   TamatchDialect.cpp
   Utils/MutableScopedHashTable.cpp
+  Utils/EqOpUnionFind.cpp
+  Utils/HashConsPatternRewriter.cpp
 
   # to silence LLVMProcessSources.cmake:116
   PARTIAL_SOURCES_INTENDED
@@ -51,7 +53,13 @@ add_mlir_public_c_api_library(TamagoyakiCAPI
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
-set(LIBS ${dialect_libs} ${conversion_libs} MLIROptLib MLIRTamagoyaki MLIRTamatch)
+set(LIBS
+    ${dialect_libs}
+    ${conversion_libs}
+    MLIROptLib
+    MLIRTamagoyaki
+    MLIRTamatch
+)
 
 add_llvm_executable(tamagoyaki-opt tamagoyaki-opt.cpp)
 llvm_update_compile_flags(tamagoyaki-opt)

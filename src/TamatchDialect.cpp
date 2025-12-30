@@ -9,6 +9,8 @@
 #include "TamatchDialect.h"
 
 #include "TamagoyakiDialect.h"
+#include "Utils/EqOpUnionFind.h"
+#include "Utils/HashConsPatternRewriter.h"
 #include "Utils/MutableScopedHashTable.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/IR/Builders.h"
@@ -17,34 +19,20 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
+// IWYU pragma: no_include "mlir/IR/PDLPatternMatch.h.inc"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
-#include "mlir/Interfaces/InferTypeOpInterface.h"
-#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Pass/PassOptions.h"
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Rewrite/PatternApplicator.h"
 #include "mlir/Support/LLVM.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "vendor/mlir/Bytecode.h"
-#include "vendor/mlir/SimpleOperationInfo.h"
-#include "llvm/ADT/EquivalenceClasses.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Allocator.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/RecyclingAllocator.h"
 #include <cassert>
-#include <functional>
-#include <iostream>
-#include <ostream>
 #include <utility>
 
 #define DEBUG_TYPE "tamatch"
@@ -90,100 +78,6 @@ void TamatchDialect::printType(Type type, DialectAsmPrinter &os) const {
 
 namespace mlir::tamatch {
 
-// Custom creator function for PDL patterns
-static SmallVector<Value> getEqVals(PatternRewriter &rewriter, Value val) {
-  if (auto eqOp = dyn_cast<tama::EqOp>(val.getDefiningOp())) {
-    return llvm::to_vector(eqOp->getOperands());
-  }
-  return {val};
-}
-
-static Value getEqResult(PatternRewriter &rewriter, Value val) {
-  if (auto eqOp =
-          val.hasOneUse() ? dyn_cast<tama::EqOp>(*val.user_begin()) : nullptr) {
-    return eqOp.getResult();
-  }
-  return val;
-}
-
-static tama::EqOp getEqOp(PatternRewriter &rewriter, Value val) {
-  if (auto eqOp =
-          val.hasOneUse() ? dyn_cast<tama::EqOp>(*val.user_begin()) : nullptr) {
-    return eqOp;
-  }
-
-  // If the value is not part of an eclass yet, create one
-  OpBuilder builder(val.getContext());
-  builder.setInsertionPointAfterValue(val);
-  auto eqOp = tama::EqOp::create(builder, val.getLoc(),
-                                 TypeRange{val.getType()}, ValueRange{val});
-  rewriter.replaceUsesWithIf(
-      val, eqOp.getResult(),
-      [&eqOp](OpOperand &operand) { return operand.getOwner() != eqOp; });
-  return eqOp;
-}
-
-class EqOpUnionFind {
-public:
-  /// Union two individual values
-  void eqUnion(PatternRewriter &rewriter, Value a, Value b) {
-    tama::EqOp eqA = getEqOp(rewriter, a);
-    tama::EqOp eqB = getEqOp(rewriter, b);
-
-    if (isEquivalent(eqA, eqB))
-      return;
-    // TODO: unionSets always treats the first argument as leader
-    // this might lead to an unbalanced union-find?
-
-    tama::EqOp leader = *unionFind.unionSets(eqA, eqB);
-    tama::EqOp other = eqB;
-
-    rewriter.replaceAllUsesWith(other.getResult(), leader.getResult());
-
-    // Find operands in `other` that aren't already in `leader`.
-    // Operands need to be deduplicated because it can happen that the same
-    // operand was used by different parent eclasses after their children were
-    // merged
-    SmallPtrSet<Value, 8> existing(leader->operand_begin(),
-                                   leader->operand_end());
-    SmallVector<Value, 8> newOperands;
-    for (Value operand : other->getOperands()) {
-      if (existing.insert(operand).second)
-        newOperands.push_back(operand);
-    }
-    // add newOperands to the end of the operand list
-    leader->setOperands(leader->getNumOperands(), 0, newOperands);
-
-    erase(other); // remove from union-find
-    rewriter.eraseOp(other);
-  }
-
-  /// Union an operation's results with corresponding values
-  void eqUnion(PatternRewriter &rewriter, Operation *op, ValueRange vals) {
-    assert(op->getNumResults() == vals.size() &&
-           "Operation result count must match value range size");
-    for (auto [result, val] : llvm::zip(op->getResults(), vals))
-      eqUnion(rewriter, result, val);
-  }
-
-  /// Union two value ranges pairwise
-  void eqUnion(PatternRewriter &rewriter, ValueRange a, ValueRange b) {
-    assert(a.size() == b.size() && "Value ranges must have equal size");
-    for (auto [va, vb] : llvm::zip(a, b))
-      eqUnion(rewriter, va, vb);
-  }
-
-  /// Check if two values are in the same equivalence class
-  bool isEquivalent(tama::EqOp a, tama::EqOp b) {
-    return unionFind.isEquivalent(a, b);
-  }
-
-  void erase(tama::EqOp op) { unionFind.erase(op); }
-
-private:
-  llvm::EquivalenceClasses<tama::EqOp> unionFind;
-};
-
 #define GEN_PASS_DEF_TAMATCHSATURATEPASS
 #include "TamatchPasses.h.inc"
 
@@ -200,76 +94,6 @@ struct NoEraseGuard : public RewriterBase::Listener {
   void notifyOperationModified(Operation *op) override {
     LLVM_DEBUG(llvm::dbgs() << "notifyOperationModified: " << *op << "\n");
   }
-};
-
-using AllocatorTy = llvm::RecyclingAllocator<
-    llvm::BumpPtrAllocator,
-    mlir::tamatch::MutableScopedHashTableVal<Operation *, Operation *>>;
-
-using ScopedMapTy = MutableScopedHashTable<Operation *, Operation *,
-                                           SimpleOperationInfo, AllocatorTy>;
-
-class HashConsPatternRewriter : public PatternRewriter {
-  struct HashConsListener : public RewriterBase::ForwardingListener {
-    HashConsListener(ScopedMapTy &hashcons,
-                     OpBuilder::Listener *listener = nullptr)
-        : ForwardingListener(listener), hashcons(hashcons),
-          underlyingListener(listener) {}
-
-    void notifyOperationErased(Operation *op) override {
-      LLVM_DEBUG(llvm::dbgs()
-                 << "HashConsListener::notifyOperationErased: " << *op << "\n");
-      hashcons.erase(op);
-      ForwardingListener::notifyOperationErased(op);
-    }
-
-    void setUnderlyingListener(OpBuilder::Listener *listener) {
-      underlyingListener = listener;
-      // Reinitialize the base class with the new listener
-      this->~HashConsListener();
-      new (this) HashConsListener(hashcons, listener);
-    }
-
-  private:
-    ScopedMapTy &hashcons;
-    OpBuilder::Listener *underlyingListener = nullptr;
-  };
-
-public:
-  explicit HashConsPatternRewriter(MLIRContext *ctx)
-      : PatternRewriter(ctx), hashConsListener(hashcons) {
-    setListener(&hashConsListener);
-  }
-
-  void startOpModification(Operation *op) override {
-    LLVM_DEBUG(llvm::dbgs()
-               << "operation being modified (start): " << *op << "\n");
-    hashcons.erase(op);
-  }
-
-  void cancelOpModification(Operation *op) override {
-    LLVM_DEBUG(llvm::dbgs()
-               << "operation being modified (cancel): " << *op << "\n");
-    hashcons.insert(op, op);
-  }
-
-  void finalizeOpModification(Operation *op) override {
-    LLVM_DEBUG(llvm::dbgs()
-               << "operation being modified (finalize): " << *op << "\n");
-    hashcons.insert(op, op);
-    PatternRewriter::finalizeOpModification(op);
-  }
-
-  /// Set an underlying listener that will receive forwarded notifications
-  /// in addition to the hashcons listener's own handling.
-  void setUnderlyingListener(OpBuilder::Listener *listener) {
-    hashConsListener.setUnderlyingListener(listener);
-  }
-
-  ScopedMapTy hashcons;
-
-private:
-  HashConsListener hashConsListener;
 };
 
 struct TamatchSaturatePass

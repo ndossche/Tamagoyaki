@@ -1,6 +1,9 @@
 #include "Utils/MutableScopedHashTable.h"
+#include "mlir/IR/Operation.h"
 #include "vendor/mlir/SimpleOperationInfo.h"
+#include "llvm/Support/Allocator.h"
 #include "llvm/Support/RecyclingAllocator.h"
+#include <cassert>
 
 namespace mlir::tamatch {
 

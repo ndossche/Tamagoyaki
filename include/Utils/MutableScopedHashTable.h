@@ -7,7 +7,6 @@
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/Support/AllocatorBase.h"
 #include <cassert>
-#include <new>
 
 namespace mlir::tamatch {
 

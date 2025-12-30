@@ -9,6 +9,7 @@
 #ifndef TAMATCH_TAMATCHDIALECT_H
 #define TAMATCH_TAMATCHDIALECT_H
 
+// IWYU pragma: begin_keep
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -16,6 +17,7 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
 #include <memory>
+// IWYU pragma: end_keep
 
 #include "TamatchDialect.h.inc"
 

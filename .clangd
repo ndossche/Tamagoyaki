@@ -1,7 +1,7 @@
 ---
 # Clangd configuration
 Diagnostics:
-  UnusedIncludes: None
+  UnusedIncludes: Strict
   MissingIncludes: Strict
 
 CompileFlags:

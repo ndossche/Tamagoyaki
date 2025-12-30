@@ -10,6 +10,7 @@
 #ifndef TAMAGOYAKI_TAMADIALECT_H
 #define TAMAGOYAKI_TAMADIALECT_H
 
+// IWYU pragma: begin_keep
 #include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -19,6 +20,7 @@
 #include "mlir/Pass/Pass.h"
 
 #include <memory>
+// IWYU pragma: end_keep
 
 #include "TamagoyakiDialect.h.inc"
 
