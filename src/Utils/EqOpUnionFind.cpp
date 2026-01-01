@@ -8,6 +8,7 @@
 
 #include "Utils/EqOpUnionFind.h"
 #include "TamagoyakiDialect.h"
+#include "Utils/HashConsPatternRewriter.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeRange.h"
@@ -16,7 +17,11 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Debug.h"
 #include <cassert>
+#include <utility>
+
+#define DEBUG_TYPE "tamatch"
 
 using namespace mlir;
 using namespace mlir::tamatch;
@@ -60,9 +65,9 @@ void EqOpUnionFind::eqUnion(PatternRewriter &rewriter, Value a, Value b) {
 
   if (isEquivalent(eqA, eqB))
     return;
+
   // TODO: unionSets always treats the first argument as leader
   // this might lead to an unbalanced union-find?
-
   tama::EqOp leader = *unionFind.unionSets(eqA, eqB);
   tama::EqOp other = eqB;
 
@@ -84,6 +89,8 @@ void EqOpUnionFind::eqUnion(PatternRewriter &rewriter, Value a, Value b) {
 
   erase(other); // remove from union-find
   rewriter.eraseOp(other);
+
+  worklist.push_back(leader);
 }
 
 void EqOpUnionFind::eqUnion(PatternRewriter &rewriter, Operation *op,
@@ -106,3 +113,92 @@ bool EqOpUnionFind::isEquivalent(tama::EqOp a, tama::EqOp b) {
 }
 
 void EqOpUnionFind::erase(tama::EqOp op) { unionFind.erase(op); }
+
+bool EqOpUnionFind::rebuild(PatternRewriter &rewriter) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "Starting rebuild. Content of worklist: \n";
+    for (tama::EqOp c : worklist) {
+      llvm::dbgs() << "\t" << c << "\n";
+    }
+  });
+
+  if (worklist.empty())
+    return false;
+
+  while (!worklist.empty()) {
+    // Create an ordered set of unique leaders from the worklist
+    llvm::SetVector<tama::EqOp> todo;
+    for (tama::EqOp c : worklist) {
+      todo.insert(*unionFind.findLeader(c));
+    }
+    worklist.clear();
+
+    // Repair each unique leader
+    for (tama::EqOp c : todo) {
+      repair(rewriter, c);
+    }
+  }
+  return true;
+}
+
+void EqOpUnionFind::repair(PatternRewriter &rewriter, tama::EqOp eqOp) {
+  // Get the canonical leader
+  eqOp = *unionFind.findLeader(eqOp);
+
+  // Create scoped map for hash-consing parent operations
+  ScopedMapTy uniqueParents;
+  ScopedMapTy::ScopeTy scope(uniqueParents);
+
+  // Collect parent operations (operations that use this eclass's result)
+  // Use SetVector to maintain insertion order while deduplicating
+  llvm::SetVector<Operation *> parentOps;
+  for (OpOperand &use : eqOp.getResult().getUses()) {
+    parentOps.insert(use.getOwner());
+  }
+
+  for (Operation *op1 : parentOps) {
+    // Skip EqOp operations - they're the eclasses themselves
+    if (isa<tama::EqOp>(op1))
+      continue;
+
+    // Look up in hash-consing table to find equivalent operation
+    Operation *op2 = uniqueParents.lookup(op1);
+
+    if (op2) {
+      // Found an equivalent operation - need to merge their eclasses
+
+      // Collect eclass pairs before replacement (since replacement invalidates
+      // uses)
+      SmallVector<std::pair<tama::EqOp, tama::EqOp>> eclassPairs;
+      for (auto [res1, res2] :
+           llvm::zip(op1->getResults(), op2->getResults())) {
+        tama::EqOp eclass1 = getEqOp(rewriter, res1);
+        tama::EqOp eclass2 = getEqOp(rewriter, res2);
+        eclassPairs.emplace_back(eclass1, eclass2);
+      }
+
+      // Replace op1 with op2's results and erase op1
+      rewriter.replaceOp(op1, op2->getResults());
+
+      // Process each result's eclass pair
+      for (auto [eclass1, eclass2] : eclassPairs) {
+        if (eclass1 == eclass2) {
+          // Same eclass - just deduplicate operands
+          SmallPtrSet<Value, 8> seen;
+          SmallVector<Value> uniqueOperands;
+          for (Value operand : eclass1->getOperands()) {
+            if (seen.insert(operand).second)
+              uniqueOperands.push_back(operand);
+          }
+          eclass1->setOperands(uniqueOperands);
+        } else {
+          // Different eclasses - union them (this adds to worklist)
+          eqUnion(rewriter, eclass1.getResult(), eclass2.getResult());
+        }
+      }
+    } else {
+      // No equivalent found, register this op
+      uniqueParents.insert(op1, op1);
+    }
+  }
+}

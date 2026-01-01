@@ -13,6 +13,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/Support/LLVM.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 
 namespace mlir::tamatch {
@@ -46,6 +47,18 @@ public:
 
   /// Erase an EqOp from the union-find
   void erase(tama::EqOp op);
+
+  /// Repair the parents of each EqOp in the worklist.
+  /// This also clears the worklist.
+  /// Returns false when the worklist was empty, otherwise true.
+  bool rebuild(PatternRewriter &rewriter);
+
+  /// Repair e-graph by potentially deduplicating the parents of
+  /// a merged EqOp.
+  void repair(PatternRewriter &rewriter, tama::EqOp eqOp);
+
+  /// List of EqOps whose parents potentially need to be repaired.
+  SmallVector<tama::EqOp> worklist;
 
 private:
   llvm::EquivalenceClasses<tama::EqOp> unionFind;
