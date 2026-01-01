@@ -10,13 +10,15 @@
 #define TAMAGOYAKI_SRC_UTILS_HASHCONSPATTERNREWRITER_H
 
 #include "MutableScopedHashTable.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Region.h"
 #include "vendor/mlir/SimpleOperationInfo.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/RecyclingAllocator.h"
+#include <memory>
 
 namespace mlir::tamatch {
 
@@ -31,19 +33,6 @@ using ScopedMapTy = MutableScopedHashTable<Operation *, Operation *,
 
 /// Pattern rewriter with hash consing support
 class HashConsPatternRewriter : public PatternRewriter {
-  struct HashConsListener : public RewriterBase::ForwardingListener {
-    HashConsListener(ScopedMapTy &hashcons,
-                     OpBuilder::Listener *listener = nullptr)
-        : ForwardingListener(listener), hashcons(hashcons),
-          underlyingListener(listener) {}
-
-    void setUnderlyingListener(OpBuilder::Listener *listener);
-
-  private:
-    ScopedMapTy &hashcons;
-    OpBuilder::Listener *underlyingListener = nullptr;
-  };
-
 public:
   explicit HashConsPatternRewriter(MLIRContext *ctx);
 
@@ -51,14 +40,33 @@ public:
   void cancelOpModification(Operation *op) override;
   void finalizeOpModification(Operation *op) override;
 
-  /// Set an underlying listener that will receive forwarded notifications
-  /// in addition to the hashcons listener's own handling.
-  void setUnderlyingListener(OpBuilder::Listener *listener);
+  /// Erase an operation from its region's hash-cons scope
+  void erase(Operation *op);
 
-  ScopedMapTy hashcons;
+  /// Insert an operation into its region's hash-cons scope
+  void insert(Operation *op);
+
+  /// Lookup an operation in its region's scope (searches parent scopes too)
+  /// Returns nullptr if not found or no scope registered
+  Operation *lookup(Operation *op);
+
+  /// Create a root scope for a region (no parent)
+  ScopedMapTy::ScopeTy *createRootScope(Region *region);
+
+  /// Create a child scope for a region with a parent region's scope
+  ScopedMapTy::ScopeTy *createChildScope(Region *region, Region *parentRegion);
+
+  /// Get the scope for a region, or nullptr if not registered
+  ScopedMapTy::ScopeTy *getScope(Region *region);
+
+  /// Remove a scope registration (does not destroy the scope)
+  void removeScope(Region *region);
 
 private:
-  HashConsListener hashConsListener;
+  ScopedMapTy hashcons;
+
+  /// Maps regions to their corresponding hash-cons scopes
+  llvm::DenseMap<Region *, std::unique_ptr<ScopedMapTy::ScopeTy>> scopeMap;
 };
 
 } // namespace mlir::tamatch

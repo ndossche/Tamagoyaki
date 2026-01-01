@@ -1,4 +1,4 @@
-// MutableScopedHashTable.h
+// MutableScopedHashTable.h - Tree-based scoping
 
 #ifndef MUTABLE_SCOPED_HASH_TABLE_H
 #define MUTABLE_SCOPED_HASH_TABLE_H
@@ -7,6 +7,8 @@
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/Support/AllocatorBase.h"
 #include <cassert>
+#include <memory>
+#include <optional>
 
 namespace mlir::tamatch {
 
@@ -16,59 +18,144 @@ class MutableScopedHashTable;
 
 template <typename K, typename V> class MutableScopedHashTableVal {
   MutableScopedHashTableVal *NextInScope;
-  MutableScopedHashTableVal **PrevInScopePtr; // For O(1) removal
-  MutableScopedHashTableVal *NextForKey;
   K Key;
   V Val;
 
   MutableScopedHashTableVal(const K &key, const V &val) : Key(key), Val(val) {}
+
+  template <typename, typename, typename, typename>
+  friend class MutableScopedHashTableScope;
 
 public:
   const K &getKey() const { return Key; }
   const V &getValue() const { return Val; }
   V &getValue() { return Val; }
 
-  MutableScopedHashTableVal *getNextForKey() { return NextForKey; }
-  const MutableScopedHashTableVal *getNextForKey() const { return NextForKey; }
   MutableScopedHashTableVal *getNextInScope() { return NextInScope; }
 
   template <typename AllocatorTy>
-  static MutableScopedHashTableVal *
-  Create(MutableScopedHashTableVal *&headPtr,
-         MutableScopedHashTableVal *nextForKey, const K &key, const V &val,
-         AllocatorTy &Allocator);
+  static MutableScopedHashTableVal *Create(MutableScopedHashTableVal *&headPtr,
+                                           const K &key, const V &val,
+                                           AllocatorTy &Allocator) {
+    auto *New = Allocator.template Allocate<MutableScopedHashTableVal>();
+    new (New) MutableScopedHashTableVal(key, val);
+    New->NextInScope = headPtr;
+    headPtr = New;
+    return New;
+  }
 
-  /// Remove this entry from the scope's linked list
-  void unlinkFromScope();
-
-  template <typename AllocatorTy> void Destroy(AllocatorTy &Allocator);
+  template <typename AllocatorTy> void Destroy(AllocatorTy &Allocator) {
+    this->~MutableScopedHashTableVal();
+    Allocator.Deallocate(this);
+  }
 };
 
 template <typename K, typename V, typename KInfo = llvm::DenseMapInfo<K>,
           typename AllocatorTy = llvm::MallocAllocator>
 class MutableScopedHashTableScope {
-  MutableScopedHashTable<K, V, KInfo, AllocatorTy> &HT;
-  MutableScopedHashTableScope *PrevScope;
-  MutableScopedHashTableVal<K, V> *LastValInScope;
-
 public:
-  MutableScopedHashTableScope(
-      MutableScopedHashTable<K, V, KInfo, AllocatorTy> &HT);
-  MutableScopedHashTableScope(MutableScopedHashTableScope &) = delete;
-  MutableScopedHashTableScope &
-  operator=(MutableScopedHashTableScope &) = delete;
-  ~MutableScopedHashTableScope();
-
-  MutableScopedHashTableScope *getParentScope() { return PrevScope; }
-  const MutableScopedHashTableScope *getParentScope() const {
-    return PrevScope;
-  }
+  using ValTy = MutableScopedHashTableVal<K, V>;
+  using TableTy = MutableScopedHashTable<K, V, KInfo, AllocatorTy>;
 
 private:
-  friend class MutableScopedHashTable<K, V, KInfo, AllocatorTy>;
+  TableTy &HT;
+  MutableScopedHashTableScope *ParentScope;
+  ValTy *LastValInScope = nullptr;
 
-  MutableScopedHashTableVal<K, V> *&getLastValInScopeRef() {
-    return LastValInScope;
+  // Local map for THIS scope's bindings only
+  llvm::DenseMap<K, ValTy *, KInfo> LocalMap;
+
+public:
+  /// Create a root scope (no parent)
+  explicit MutableScopedHashTableScope(TableTy &ht)
+      : HT(ht), ParentScope(nullptr) {}
+
+  /// Create a child scope with explicit parent
+  MutableScopedHashTableScope(TableTy &ht, MutableScopedHashTableScope *parent)
+      : HT(ht), ParentScope(parent) {}
+
+  MutableScopedHashTableScope(const MutableScopedHashTableScope &) = delete;
+  MutableScopedHashTableScope &
+  operator=(const MutableScopedHashTableScope &) = delete;
+
+  ~MutableScopedHashTableScope() {
+    // Clean up all values in this scope
+    while (ValTy *Entry = LastValInScope) {
+      LastValInScope = Entry->getNextInScope();
+      Entry->Destroy(HT.getAllocator());
+    }
+  }
+
+  MutableScopedHashTableScope *getParentScope() { return ParentScope; }
+  const MutableScopedHashTableScope *getParentScope() const {
+    return ParentScope;
+  }
+
+  /// Insert a key-value pair into THIS scope
+  void insert(const K &Key, const V &Val) {
+    ValTy *NewVal = ValTy::Create(LastValInScope, Key, Val, HT.getAllocator());
+    LocalMap[Key] = NewVal;
+  }
+
+  /// Lookup a key, searching this scope and all ancestors
+  std::optional<V> lookup(const K &Key) const {
+    // Search this scope first
+    auto it = LocalMap.find(Key);
+    if (it != LocalMap.end())
+      return it->second->getValue();
+
+    // Recurse to parent
+    if (ParentScope)
+      return ParentScope->lookup(Key);
+
+    return std::nullopt;
+  }
+
+  /// Lookup returning default value if not found
+  V lookupOrDefault(const K &Key) const {
+    auto result = lookup(Key);
+    return result ? *result : V();
+  }
+
+  /// Check if key exists in this scope or ancestors
+  bool count(const K &Key) const { return lookup(Key).has_value(); }
+
+  /// Check if key exists in THIS scope only (not ancestors)
+  bool countLocal(const K &Key) const { return LocalMap.count(Key); }
+
+  /// Erase from THIS scope only. Returns true if found and erased.
+  bool erase(const K &Key) {
+    auto it = LocalMap.find(Key);
+    if (it == LocalMap.end())
+      return false;
+
+    ValTy *Entry = it->second;
+    LocalMap.erase(it);
+
+    // Remove from scope's linked list (O(n) but maintains cleanup order)
+    ValTy **Ptr = &LastValInScope;
+    while (*Ptr && *Ptr != Entry)
+      Ptr = &((*Ptr)->NextInScope); // Need to expose this or add friend
+
+    if (*Ptr) {
+      *Ptr = Entry->getNextInScope();
+    }
+
+    Entry->Destroy(HT.getAllocator());
+    return true;
+  }
+
+  /// Get mutable reference to value (searches ancestors)
+  /// Returns nullptr if not found
+  V *lookupMutable(const K &Key) {
+    auto it = LocalMap.find(Key);
+    if (it != LocalMap.end())
+      return &it->second->getValue();
+
+    if (ParentScope)
+      return ParentScope->lookupMutable(Key);
+
+    return nullptr;
   }
 };
 
@@ -78,39 +165,25 @@ class MutableScopedHashTable : llvm::detail::AllocatorHolder<AllocatorTy> {
 
 public:
   using ScopeTy = MutableScopedHashTableScope<K, V, KInfo, AllocatorTy>;
-  using size_type = unsigned;
-
-private:
-  friend class MutableScopedHashTableScope<K, V, KInfo, AllocatorTy>;
-
   using ValTy = MutableScopedHashTableVal<K, V>;
 
-  llvm::DenseMap<K, ValTy *, KInfo> TopLevelMap;
-  ScopeTy *CurScope = nullptr;
+  friend class MutableScopedHashTableScope<K, V, KInfo, AllocatorTy>;
 
-public:
   MutableScopedHashTable() = default;
-
   MutableScopedHashTable(const MutableScopedHashTable &) = delete;
   MutableScopedHashTable &operator=(const MutableScopedHashTable &) = delete;
 
-  ~MutableScopedHashTable() {
-    assert(!CurScope && TopLevelMap.empty() && "Scope imbalance!");
-  }
-
   using AllocTy::getAllocator;
 
-  size_type count(const K &Key) const { return TopLevelMap.count(Key); }
+  /// Create a root scope
+  [[nodiscard]] std::unique_ptr<ScopeTy> createRootScope() {
+    return std::make_unique<ScopeTy>(*this);
+  }
 
-  V lookup(const K &Key) const;
-
-  void insert(const K &Key, const V &Val);
-
-  /// Erase a key from the table. Returns true if found and erased.
-  bool erase(const K &Key);
-
-  ScopeTy *getCurScope() { return CurScope; }
-  const ScopeTy *getCurScope() const { return CurScope; }
+  /// Create a child scope from a parent
+  [[nodiscard]] std::unique_ptr<ScopeTy> createChildScope(ScopeTy *parent) {
+    return std::make_unique<ScopeTy>(*this, parent);
+  }
 };
 
 } // namespace mlir::tamatch

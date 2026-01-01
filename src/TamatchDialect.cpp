@@ -29,6 +29,7 @@
 #include "mlir/Support/LLVM.h"
 #include "vendor/mlir/Bytecode.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -142,15 +143,22 @@ struct TamatchSaturatePass
     PDLPatternModule pdlPattern(patternModule);
 
     EqOpUnionFind uf{};
-    HashConsPatternRewriter rewriter(module.getContext());
-    ScopedMapTy &hashcons = rewriter.hashcons;
-    ScopedMapTy::ScopeTy rootScope(hashcons);
+    HashConsPatternRewriter hashconsRewriter(module.getContext());
 
-    irModule.walk([&](Operation *op) {
-      if (dyn_cast<tama::EqOp>(*op)) {
+    irModule.walk([&](Operation *e) {
+      tama::EGraphOp egraph = llvm::dyn_cast<tama::EGraphOp>(*e);
+      if (!egraph) {
         return;
       }
-      hashcons.insert(op, op);
+      Region *region = &(egraph.getBody());
+      auto scope = hashconsRewriter.createRootScope(region);
+
+      egraph->walk([&scope](Operation *op) {
+        if (dyn_cast<tama::EqOp>(*op)) {
+          return;
+        }
+        scope->insert(op, op);
+      });
     });
 
     // Register custom rewrite functions
@@ -181,8 +189,8 @@ struct TamatchSaturatePass
       return success();
     });
     pdlPattern.registerRewriteFunction(
-        "dedup", [&hashcons](PatternRewriter &rewriter, Operation *op) {
-          if (auto *existing = hashcons.lookup(op)) {
+        "dedup", [&hashconsRewriter](PatternRewriter &rewriter, Operation *op) {
+          if (Operation *existing = hashconsRewriter.lookup(op)) {
             LLVM_DEBUG(llvm::dbgs()
                        << "deduplicating operation: " << *op << "\n");
             assert(existing != op);
@@ -191,7 +199,7 @@ struct TamatchSaturatePass
           }
           LLVM_DEBUG(llvm::dbgs() << "no duplicate, inserting into hashcons: "
                                   << *op << "\n");
-          hashcons.insert(op, op);
+          hashconsRewriter.insert(op);
           return op;
         });
     patternList.add(std::move(pdlPattern));
@@ -200,7 +208,7 @@ struct TamatchSaturatePass
 
     NoEraseGuard guard;
     if (verifyNoErase) {
-      rewriter.setUnderlyingListener(&guard);
+      hashconsRewriter.setListener(&guard);
     }
 
     // Structure to hold deferred matches
@@ -240,7 +248,7 @@ struct TamatchSaturatePass
         // Execute the bytecode matcher.
         // matches are allocated in bytecodeState and pointers are stored in
         // opMatches.
-        bytecode->match(op, rewriter, opMatches, bytecodeState);
+        bytecode->match(op, hashconsRewriter, opMatches, bytecodeState);
 
         for (auto &match : opMatches) {
           allMatches.push_back({op, std::move(match)});
@@ -250,15 +258,16 @@ struct TamatchSaturatePass
       // Apply rewrites for all collected matches.
       for (const auto &pm : allMatches) {
         // Set insertion point to the matched operation (standard PDL behavior)
-        rewriter.setInsertionPoint(pm.op);
+        hashconsRewriter.setInsertionPoint(pm.op);
 
         // Execute the rewrite. This will trigger the registered "union"
         // callback. We pass the same bytecodeState so it can access captured
         // values.
-        (void)bytecode->rewrite(rewriter, pm.matchResult, bytecodeState);
+        (void)bytecode->rewrite(hashconsRewriter, pm.matchResult,
+                                bytecodeState);
       }
       bytecodeState.cleanupAfterMatchAndRewrite();
-    } while (uf.rebuild(rewriter));
+    } while (uf.rebuild(hashconsRewriter));
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
         endTime - startTime);
