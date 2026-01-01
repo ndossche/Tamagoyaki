@@ -8,13 +8,13 @@
 
 #include "Utils/EqOpUnionFind.h"
 #include "TamagoyakiDialect.h"
-#include "Utils/HashConsPatternRewriter.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Support/LLVM.h"
+#include "vendor/mlir/SimpleOperationInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Debug.h"
@@ -146,8 +146,7 @@ void EqOpUnionFind::repair(PatternRewriter &rewriter, tama::EqOp eqOp) {
   eqOp = *unionFind.findLeader(eqOp);
 
   // Create scoped map for hash-consing parent operations
-  ScopedMapTy uniqueParents;
-  ScopedMapTy::ScopeTy scope(uniqueParents);
+  llvm::DenseMap<Operation *, Operation *, SimpleOperationInfo> uniqueParents;
 
   // Collect parent operations (operations that use this eclass's result)
   // Use SetVector to maintain insertion order while deduplicating
@@ -198,7 +197,7 @@ void EqOpUnionFind::repair(PatternRewriter &rewriter, tama::EqOp eqOp) {
       }
     } else {
       // No equivalent found, register this op
-      uniqueParents.insert(op1, op1);
+      uniqueParents[op1] = op1;
     }
   }
 }
