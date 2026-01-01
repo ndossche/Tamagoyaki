@@ -37,7 +37,6 @@ class HashConsPatternRewriter : public PatternRewriter {
         : ForwardingListener(listener), hashcons(hashcons),
           underlyingListener(listener) {}
 
-    void notifyOperationErased(Operation *op) override;
     void setUnderlyingListener(OpBuilder::Listener *listener);
 
   private:

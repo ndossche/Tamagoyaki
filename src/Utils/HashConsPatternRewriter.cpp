@@ -18,14 +18,6 @@
 using namespace mlir;
 using namespace mlir::tamatch;
 
-void HashConsPatternRewriter::HashConsListener::notifyOperationErased(
-    Operation *op) {
-  LLVM_DEBUG(llvm::dbgs() << "HashConsListener::notifyOperationErased: " << *op
-                          << "\n");
-  hashcons.erase(op);
-  ForwardingListener::notifyOperationErased(op);
-}
-
 void HashConsPatternRewriter::HashConsListener::setUnderlyingListener(
     OpBuilder::Listener *listener) {
   underlyingListener = listener;
