@@ -71,7 +71,10 @@ module @patterns {
         pdl_interp.func @pdl_generated_rewriter(%arg0: !pdl.value, %arg1: !pdl.operation) {
             %0 = pdl_interp.create_attribute 1 : i32
             %1 = pdl_interp.create_type i32
-            %2 = pdl_interp.create_operation "arith.constant" {"value" = %0}  -> (%1 : !pdl.type)
+            
+            %orig_2 = pdl_interp.create_operation "arith.constant" {"value" = %0}  -> (%1 : !pdl.type)
+            %2 = pdl_interp.apply_rewrite "dedup"(%orig_2 : !pdl.operation) : !pdl.operation
+            
             %3 = pdl_interp.get_result 0 of %2
              
             %orig_4 = pdl_interp.create_operation "arith.shli"(%arg0, %3 : !pdl.value, !pdl.value)  -> (%1 : !pdl.type)

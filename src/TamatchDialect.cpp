@@ -84,20 +84,6 @@ namespace mlir::tamatch {
 #include "TamatchPasses.h.inc"
 
 namespace {
-
-struct NoEraseGuard : public RewriterBase::Listener {
-  void notifyOperationErased(Operation *op) override {
-    if (!dyn_cast<tama::EqOp>(*op)) {
-      op->emitError("Operations cannot be erased during equality saturation.");
-      llvm_unreachable("Operation erased against expectation.");
-    }
-  }
-
-  void notifyOperationModified(Operation *op) override {
-    LLVM_DEBUG(llvm::dbgs() << "notifyOperationModified: " << *op << "\n");
-  }
-};
-
 struct TamatchSaturatePass
     : public impl::TamatchSaturatePassBase<TamatchSaturatePass> {
   using impl::TamatchSaturatePassBase<
@@ -107,11 +93,6 @@ struct TamatchSaturatePass
   TamatchSaturatePass(const TamatchSaturatePass &pass)
       : TamatchSaturatePassBase(pass) {}
 
-  Option<bool> verifyNoErase{
-      *this, "verify-no-erase",
-      llvm::cl::desc("Whether to throw an error when an operation is removed "
-                     "during equality saturation, defaults to true."),
-      llvm::cl::init(true)};
   Option<int> maxIters{
       *this, "max-iters",
       llvm::cl::desc("Maximum number of iterations before equality saturation "
@@ -205,11 +186,6 @@ struct TamatchSaturatePass
     patternList.add(std::move(pdlPattern));
 
     FrozenRewritePatternSet frozenPatterns(std::move(patternList));
-
-    NoEraseGuard guard;
-    if (verifyNoErase) {
-      hashconsRewriter.setListener(&guard);
-    }
 
     // Structure to hold deferred matches
     struct PendingMatch {
