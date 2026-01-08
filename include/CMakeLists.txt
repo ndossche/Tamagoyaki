@@ -31,7 +31,7 @@ set(tama_generated_files
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Types.cpp.inc
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Dialect.h.inc
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Dialect.cpp.inc
-  ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}TamagoyakiPasses.h.inc
+  ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Passes.h.inc
 )
 
 set(DST ${CMAKE_CURRENT_SOURCE_DIR})
