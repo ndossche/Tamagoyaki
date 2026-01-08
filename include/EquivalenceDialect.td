@@ -1,4 +1,4 @@
-//===- TamagoyakiDialect.td - Tamagoyaki dialect -----------------*- tablegen -*-===//
+//===- EquivalenceDialect.td - Equivalence dialect -----------------*- tablegen -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TAMA_DIALECT
-#define TAMA_DIALECT
+#ifndef EQUIVALENCE_DIALECT
+#define EQUIVALENCE_DIALECT
 
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -17,18 +17,18 @@ include "mlir/Pass/PassBase.td"
 include "mlir/IR/AttrTypeBase.td"
 
 //===----------------------------------------------------------------------===//
-// Tamagoyaki dialect definition.
+// Equivalence dialect definition.
 //===----------------------------------------------------------------------===//
 
-def Tama_Dialect : Dialect {
-    let name = "tama";
-    let summary = "A tama out-of-tree MLIR dialect.";
+def Equivalence_Dialect : Dialect {
+    let name = "equivalence";
+    let summary = "An equivalence out-of-tree MLIR dialect.";
     let description = [{
         This dialect is an example of an out-of-tree MLIR dialect designed to
         illustrate the basic setup required to develop MLIR-based tools without
         working inside of the LLVM source tree.
     }];
-    let cppNamespace = "::mlir::tama";
+    let cppNamespace = "::mlir::equivalence";
 
     let useDefaultTypePrinterParser = 1;
     let extraClassDeclaration = [{
@@ -37,20 +37,20 @@ def Tama_Dialect : Dialect {
 }
 
 //===----------------------------------------------------------------------===//
-// Base tama operation definition.
+// Base equivalence operation definition.
 //===----------------------------------------------------------------------===//
 
-class Tama_Op<string mnemonic, list<Trait> traits = []> :
-        Op<Tama_Dialect, mnemonic, traits>;
+class Equivalence_Op<string mnemonic, list<Trait> traits = []> :
+        Op<Equivalence_Dialect, mnemonic, traits>;
 
 //===----------------------------------------------------------------------===//
-// Tama Operations
+// Equivalence Operations
 //===----------------------------------------------------------------------===//
 
-def Tama_FooOp : Tama_Op<"foo", [Pure, SameOperandsAndResultType]> {
+def Equivalence_FooOp : Equivalence_Op<"foo", [Pure, SameOperandsAndResultType]> {
     let summary = "Illustrates how to define an operation.";
     let description = [{
-        The `tama.foo` operation illustrates how to define a new
+        The `equivalence.foo` operation illustrates how to define a new
         operation in a dialect. It uses an operation trait to declare that it
         has no side effects.
 
@@ -61,7 +61,7 @@ def Tama_FooOp : Tama_Op<"foo", [Pure, SameOperandsAndResultType]> {
         ```mlir
         %0 = arith.constant 2 : i32
         // Apply the foo operation to %0
-        %1 = tama.foo %0 : i32
+        %1 = equivalence.foo %0 : i32
         ```
     }];
 
@@ -73,14 +73,14 @@ def Tama_FooOp : Tama_Op<"foo", [Pure, SameOperandsAndResultType]> {
     }];
 }
 
-// definition of the YieldOp (eqsat.yield)
-def Tama_YieldOp : Tama_Op<"yield", [
+// definition of the YieldOp (equivalence.yield)
+def Equivalence_YieldOp : Equivalence_Op<"yield", [
     Terminator, 
     HasParent<"EGraphOp">
 ]> {
     let summary = "Yield values from an egraph region";
     let description = [{
-        The `tama.yield` operation yields values from a `tama.egraph` region.
+        The `equivalence.yield` operation yields values from a `equivalence.egraph` region.
         It serves as the terminator for the egraph block.
     }];
 
@@ -90,7 +90,7 @@ def Tama_YieldOp : Tama_Op<"yield", [
         $values `:` type($values) attr-dict
     }];
     
-    // This allows SingleBlockImplicitTerminator to build 'tama.yield'
+    // This allows SingleBlockImplicitTerminator to build 'equivalence.yield'
     // without arguments when closing the block.
     let builders = [
         OpBuilder<(ins), [{ return; }]>
@@ -98,14 +98,14 @@ def Tama_YieldOp : Tama_Op<"yield", [
 
 }
 
-def Tama_EGraphOp : Tama_Op<"egraph", [
-    // Ensures the region has one block and ends with a tama.yield
+def Equivalence_EGraphOp : Equivalence_Op<"egraph", [
+    // Ensures the region has one block and ends with a equivalence.yield
     SingleBlockImplicitTerminator<"YieldOp">,
     IsolatedFromAbove,
  ]> {
     let summary = "An e-graph region operation";
     let description = [{
-        The `tama.egraph` operation contains a single-block region in which
+        The `equivalence.egraph` operation contains a single-block region in which
         equivalence classes and other operations are defined. Importantly,
         operations in the region are unordered, value uses can come before
         their definitions.
@@ -121,7 +121,7 @@ def Tama_EGraphOp : Tama_Op<"egraph", [
     }];
 }
 
-def Tama_EqOp : Tama_Op<"eq", [
+def Equivalence_EqOp : Equivalence_Op<"eq", [
     Pure, 
     SameOperandsAndResultType,
 ]> {
@@ -143,8 +143,8 @@ def Tama_EqOp : Tama_Op<"eq", [
 
     // Verify the following:
     // 1. At least one operand.
-    // 2. Operands cannot be result of other EClassOp.
-    // 3. Operands must be used only by this EClassOp.
+    // 2. Operands cannot be result of other EqOp.
+    // 3. Operands must be used only by this EqOp.
     let hasVerifier = 1; 
 }
 
@@ -152,13 +152,13 @@ def Tama_EqOp : Tama_Op<"eq", [
 // Other Definitions
 //===----------------------------------------------------------------------===//
 
-def TamaInsertEgraph : Pass<"tama-insert-egraph", "::mlir::ModuleOp"> {
-  let summary = "Replaces a function body with a tama.egraph operation.";
-  let dependentDialects = ["::mlir::tama::TamaDialect", "::mlir::func::FuncDialect"];
+def EquivalenceInsertEgraph : Pass<"equivalence-insert-egraph", "::mlir::ModuleOp"> {
+  let summary = "Replaces a function body with a equivalence.egraph operation.";
+  let dependentDialects = ["::mlir::equivalence::EquivalenceDialect", "::mlir::func::FuncDialect"];
 }
   
 
-def TamaSwitchBarFoo: Pass<"tama-switch-bar-foo", "::mlir::ModuleOp"> {
+def EquivalenceSwitchBarFoo: Pass<"equivalence-switch-bar-foo", "::mlir::ModuleOp"> {
   let summary = "Switches the name of a FuncOp named `bar` to `foo` and folds.";
   let description = [{
     Switches the name of a FuncOp named `bar` to `foo` and folds.
@@ -174,16 +174,16 @@ def TamaSwitchBarFoo: Pass<"tama-switch-bar-foo", "::mlir::ModuleOp"> {
   }];
 }
 
-class Tama_Type<string name, string typeMnemonic, list<Trait> traits = []>
-    : TypeDef<Tama_Dialect, name, traits> {
+class Equivalence_Type<string name, string typeMnemonic, list<Trait> traits = []>
+    : TypeDef<Equivalence_Dialect, name, traits> {
   let mnemonic = typeMnemonic;
 }
 
-def Tama_CustomType : Tama_Type<"Custom", "custom"> {
-    let summary = "Tama custom type";
-    let description = "Custom type in tama dialect";
+def Equivalence_CustomType : Equivalence_Type<"Custom", "custom"> {
+    let summary = "Equivalence custom type";
+    let description = "Custom type in equivalence dialect";
     let parameters = (ins StringRefParameter<"the custom value">:$value);
     let assemblyFormat = "`<` $value `>`";
 }
 
-#endif // TAMA_DIALECT
+#endif // EQUIVALENCE_DIALECT

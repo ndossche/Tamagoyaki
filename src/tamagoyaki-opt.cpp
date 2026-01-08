@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TamagoyakiDialect.h"
+#include "EquivalenceDialect.h"
 #include "TamatchDialect.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -16,7 +16,7 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
 using namespace mlir;
-using namespace mlir::tama;
+using namespace mlir::equivalence;
 using namespace mlir::tamatch;
 
 namespace mlir::tamatch {
@@ -25,10 +25,11 @@ void registerPasses();
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
-  mlir::tama::registerPasses();
+  mlir::equivalence::registerPasses();
   mlir::tamatch::registerPasses();
   mlir::DialectRegistry registry;
-  registry.insert<mlir::tama::TamaDialect, mlir::tamatch::TamatchDialect>();
+  registry.insert<mlir::equivalence::EquivalenceDialect,
+                  mlir::tamatch::TamatchDialect>();
   registerAllDialects(registry);
 
   return mlir::asMainReturnCode(

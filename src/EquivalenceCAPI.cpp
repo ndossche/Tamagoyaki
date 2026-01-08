@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TamagoyakiCAPI.h"
+#include "EquivalenceCAPI.h"
 
-#include "TamagoyakiDialect.h"
+#include "EquivalenceDialect.h"
 
 #include "mlir-c/IR.h"
 #include "mlir-c/Support.h"
@@ -17,16 +17,17 @@
 #include "mlir/CAPI/Support.h"
 #include "llvm/Support/Casting.h"
 
-MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Tama, tama, mlir::tama::TamaDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Equivalence, equivalence,
+                                      mlir::equivalence::EquivalenceDialect)
 
 //===---------------------------------------------------------------------===//
 // CustomType
 //===---------------------------------------------------------------------===//
 
-bool mlirTypeIsATamaCustomType(MlirType type) {
-  return llvm::isa<mlir::tama::CustomType>(unwrap(type));
+bool mlirTypeIsAEquivalenceCustomType(MlirType type) {
+  return llvm::isa<mlir::equivalence::CustomType>(unwrap(type));
 }
 
-MlirType mlirTamaCustomTypeGet(MlirContext ctx, MlirStringRef value) {
-  return wrap(mlir::tama::CustomType::get(unwrap(ctx), unwrap(value)));
+MlirType mlirEquivalenceCustomTypeGet(MlirContext ctx, MlirStringRef value) {
+  return wrap(mlir::equivalence::CustomType::get(unwrap(ctx), unwrap(value)));
 }

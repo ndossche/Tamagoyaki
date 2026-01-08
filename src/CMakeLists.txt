@@ -1,6 +1,6 @@
 add_mlir_dialect_library(
-  MLIRTamagoyaki
-  TamagoyakiDialect.cpp
+  MLIREquivalence
+  EquivalenceDialect.cpp
 
   # to silence LLVMProcessSources.cmake:116
   PARTIAL_SOURCES_INTENDED
@@ -9,8 +9,8 @@ add_mlir_dialect_library(
   ${PROJECT_SOURCE_DIR}/include
 
   DEPENDS
-  MLIRTamagoyakiIncGen
-  copy_tamagoyaki_generated_td_to_src_include
+  MLIREquivalenceIncGen
+  copy_equivalence_generated_td_to_src_include
 
   LINK_LIBS PUBLIC
   MLIRIR
@@ -42,13 +42,13 @@ add_mlir_dialect_library(
   MLIRRegisterAllDialects
 )
 
-add_mlir_public_c_api_library(TamagoyakiCAPI
-  TamagoyakiCAPI.cpp
+add_mlir_public_c_api_library(EquivalenceCAPI
+  EquivalenceCAPI.cpp
   # to silence LLVMProcessSources.cmake:116
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
-  MLIRTamagoyaki
+  MLIREquivalence
 )
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
@@ -57,13 +57,13 @@ set(LIBS
     ${dialect_libs}
     ${conversion_libs}
     MLIROptLib
-    MLIRTamagoyaki
+    MLIREquivalence
     MLIRTamatch
 )
 
 add_llvm_executable(tamagoyaki-opt tamagoyaki-opt.cpp)
 llvm_update_compile_flags(tamagoyaki-opt)
 target_link_libraries(tamagoyaki-opt PRIVATE ${LIBS})
-add_dependencies(tamagoyaki-opt MLIRTamagoyakiIncGen MLIRTamatchIncGen)
+add_dependencies(tamagoyaki-opt MLIREquivalenceIncGen MLIRTamatchIncGen)
 
 mlir_check_all_link_libraries(tamagoyaki-opt)

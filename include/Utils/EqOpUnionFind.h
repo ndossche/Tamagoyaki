@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TAMAGOYAKI_SRC_UTILS_EQOPUNIONFIND_H
-#define TAMAGOYAKI_SRC_UTILS_EQOPUNIONFIND_H
+#ifndef EQUIVALENCE_SRC_UTILS_EQOPUNIONFIND_H
+#define EQUIVALENCE_SRC_UTILS_EQOPUNIONFIND_H
 
-#include "TamagoyakiDialect.h"
+#include "EquivalenceDialect.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
@@ -26,7 +26,7 @@ SmallVector<mlir::Value> getEqVals(mlir::PatternRewriter &rewriter,
 mlir::Value getEqResult(mlir::PatternRewriter &rewriter, mlir::Value val);
 
 /// Helper function to get or create an EqOp for a value
-tama::EqOp getEqOp(mlir::PatternRewriter &rewriter, mlir::Value val);
+equivalence::EqOp getEqOp(mlir::PatternRewriter &rewriter, mlir::Value val);
 
 /// Union-find data structure for managing equivalence classes of EqOp
 class EqOpUnionFind {
@@ -43,10 +43,10 @@ public:
                mlir::ValueRange b);
 
   /// Check if two values are in the same equivalence class
-  bool isEquivalent(tama::EqOp a, tama::EqOp b);
+  bool isEquivalent(equivalence::EqOp a, equivalence::EqOp b);
 
   /// Erase an EqOp from the union-find
-  void erase(tama::EqOp op);
+  void erase(equivalence::EqOp op);
 
   /// Repair the parents of each EqOp in the worklist.
   /// This also clears the worklist.
@@ -55,15 +55,15 @@ public:
 
   /// Repair e-graph by potentially deduplicating the parents of
   /// a merged EqOp.
-  void repair(PatternRewriter &rewriter, tama::EqOp eqOp);
+  void repair(PatternRewriter &rewriter, equivalence::EqOp eqOp);
 
   /// List of EqOps whose parents potentially need to be repaired.
-  SmallVector<tama::EqOp> worklist;
+  SmallVector<equivalence::EqOp> worklist;
 
 private:
-  llvm::EquivalenceClasses<tama::EqOp> unionFind;
+  llvm::EquivalenceClasses<equivalence::EqOp> unionFind;
 };
 
 } // namespace mlir::tamatch
 
-#endif // TAMAGOYAKI_SRC_UTILS_EQOPUNIONFIND_H
+#endif // EQUIVALENCE_SRC_UTILS_EQOPUNIONFIND_H

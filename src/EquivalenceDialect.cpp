@@ -1,4 +1,5 @@
-//===- TamagoyakiDialect.cpp - Tamagoyaki dialect ---------------*- C++ -*-===//
+//===- EquivalenceDialect.cpp - Equivalence dialect ---------------*- C++
+//-*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TamagoyakiDialect.h"
+#include "EquivalenceDialect.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
@@ -26,29 +27,29 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
-using namespace mlir::tama;
+using namespace mlir::equivalence;
 
-#include "TamagoyakiDialect.cpp.inc"
+#include "EquivalenceDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
-// Tama dialect.
+// Equivalence dialect.
 //===----------------------------------------------------------------------===//
 
-void TamaDialect::initialize() {
+void EquivalenceDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "TamagoyakiOps.cpp.inc"
+#include "EquivalenceOps.cpp.inc"
 
       >();
   registerTypes();
 }
 
 //===----------------------------------------------------------------------===//
-// Tama ops
+// Equivalence ops
 //===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
-#include "TamagoyakiOps.cpp.inc"
+#include "EquivalenceOps.cpp.inc"
 
 LogicalResult EqOp::verify() {
   if (getInputs().empty()) {
@@ -73,13 +74,13 @@ LogicalResult EqOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// Tamagoyaki passes
+// Equivalence passes
 //===----------------------------------------------------------------------===//
 
-namespace mlir::tama {
-#define GEN_PASS_DEF_TAMAINSERTEGRAPH
-#define GEN_PASS_DEF_TAMASWITCHBARFOO
-#include "TamagoyakiPasses.h.inc"
+namespace mlir::equivalence {
+#define GEN_PASS_DEF_EQUIVALENCEINSERTEGRAPH
+#define GEN_PASS_DEF_EQUIVALENCESWITCHBARFOO
+#include "EquivalencePasses.h.inc"
 
 namespace {
 
@@ -129,9 +130,11 @@ void wrapValuesInEqOps(Region &region, OpBuilder &builder) {
   }
 }
 
-class TamaInsertEgraph : public impl::TamaInsertEgraphBase<TamaInsertEgraph> {
+class EquivalenceInsertEgraph
+    : public impl::EquivalenceInsertEgraphBase<EquivalenceInsertEgraph> {
 public:
-  using impl::TamaInsertEgraphBase<TamaInsertEgraph>::TamaInsertEgraphBase;
+  using impl::EquivalenceInsertEgraphBase<
+      EquivalenceInsertEgraph>::EquivalenceInsertEgraphBase;
   void runOnOperation() final {
     ModuleOp module = getOperation();
 
@@ -206,7 +209,7 @@ private:
   }
 };
 
-class TamaSwitchBarFooRewriter : public OpRewritePattern<func::FuncOp> {
+class EquivalenceSwitchBarFooRewriter : public OpRewritePattern<func::FuncOp> {
 public:
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(func::FuncOp op,
@@ -219,31 +222,33 @@ public:
   }
 };
 
-class TamaSwitchBarFoo : public impl::TamaSwitchBarFooBase<TamaSwitchBarFoo> {
+class EquivalenceSwitchBarFoo
+    : public impl::EquivalenceSwitchBarFooBase<EquivalenceSwitchBarFoo> {
 public:
-  using impl::TamaSwitchBarFooBase<TamaSwitchBarFoo>::TamaSwitchBarFooBase;
+  using impl::EquivalenceSwitchBarFooBase<
+      EquivalenceSwitchBarFoo>::EquivalenceSwitchBarFooBase;
   void runOnOperation() final {
     RewritePatternSet patterns(&getContext());
-    patterns.add<TamaSwitchBarFooRewriter>(&getContext());
+    patterns.add<EquivalenceSwitchBarFooRewriter>(&getContext());
     FrozenRewritePatternSet patternSet(std::move(patterns));
     if (failed(applyPatternsGreedily(getOperation(), patternSet)))
       signalPassFailure();
   }
 };
 } // namespace
-} // namespace mlir::tama
+} // namespace mlir::equivalence
 
 //===----------------------------------------------------------------------===//
-// Tama types
+// Equivalence types
 //===----------------------------------------------------------------------===//
 
 #define GET_TYPEDEF_CLASSES
-#include "TamagoyakiTypes.cpp.inc"
+#include "EquivalenceTypes.cpp.inc"
 
-void TamaDialect::registerTypes() {
+void EquivalenceDialect::registerTypes() {
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "TamagoyakiTypes.cpp.inc"
+#include "EquivalenceTypes.cpp.inc"
 
       >();
 }

@@ -1,6 +1,6 @@
-# Tama dialect
-set(dialect Tamagoyaki)
-set(dialect_namespace tama)
+# Equivalence dialect
+set(dialect Equivalence)
+set(dialect_namespace equivalence)
 set(LLVM_TARGET_DEFINITIONS ${dialect}Dialect.td)
 
 mlir_tablegen(${dialect}Ops.h.inc -gen-op-decls)
@@ -19,12 +19,12 @@ set(DIALECT_H_INC_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
 mlir_tablegen(${dialect}Dialect.cpp.inc -gen-dialect-defs
               -dialect=${dialect_namespace})
 set(DIALECT_CPP_INC_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
-mlir_tablegen(TamagoyakiPasses.h.inc --gen-pass-decls)
+mlir_tablegen(EquivalencePasses.h.inc --gen-pass-decls)
 set(PASS_H_INC_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
 
 add_public_tablegen_target(MLIR${dialect}IncGen)
 
-set(tama_generated_files
+set(equivalence_generated_files
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Ops.h.inc
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Ops.cpp.inc
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Types.h.inc
@@ -38,7 +38,7 @@ set(DST ${CMAKE_CURRENT_SOURCE_DIR})
 
 # copy generated files from build dir to here
 add_custom_command(
-  OUTPUT ${tama_generated_files}
+  OUTPUT ${equivalence_generated_files}
   DEPENDS MLIR${dialect}IncGen
   COMMENT "copying generated td files from build to src include dir"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -64,7 +64,7 @@ add_custom_command(
       ${DST}
 )
 
-add_custom_target(copy_tamagoyaki_generated_td_to_src_include DEPENDS ${tama_generated_files})
+add_custom_target(copy_equivalence_generated_td_to_src_include DEPENDS ${equivalence_generated_files})
 
 # Tamatch dialect
 set(dialect Tamatch)

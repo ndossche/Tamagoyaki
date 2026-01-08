@@ -8,7 +8,7 @@
 
 #include "TamatchDialect.h"
 
-#include "TamagoyakiDialect.h"
+#include "EquivalenceDialect.h"
 #include "Utils/EqOpUnionFind.h"
 #include "Utils/HashConsPatternRewriter.h"
 #include "Utils/MutableScopedHashTable.h"
@@ -127,7 +127,7 @@ struct TamatchSaturatePass
     HashConsPatternRewriter hashconsRewriter(module.getContext());
 
     irModule.walk([&](Operation *e) {
-      tama::EGraphOp egraph = llvm::dyn_cast<tama::EGraphOp>(*e);
+      equivalence::EGraphOp egraph = llvm::dyn_cast<equivalence::EGraphOp>(*e);
       if (!egraph) {
         return;
       }
@@ -135,7 +135,7 @@ struct TamatchSaturatePass
       auto scope = hashconsRewriter.createRootScope(region);
 
       egraph->walk([&scope](Operation *op) {
-        if (dyn_cast<tama::EqOp>(*op)) {
+        if (dyn_cast<equivalence::EqOp>(*op)) {
           return;
         }
         scope->insert(op, op);

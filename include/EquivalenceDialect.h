@@ -1,4 +1,4 @@
-//===- TamagoyakiDialect.h - Tamagoyaki dialect ------------------*- C++
+//===- EquivalenceDialect.h - Equivalence dialect ------------------*- C++
 //-*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TAMAGOYAKI_TAMADIALECT_H
-#define TAMAGOYAKI_TAMADIALECT_H
+#ifndef EQUIVALENCE_EQUIVALENCEDIALECT_H
+#define EQUIVALENCE_EQUIVALENCEDIALECT_H
 
 // IWYU pragma: begin_keep
 #include "mlir/Bytecode/BytecodeOpInterface.h"
@@ -22,20 +22,20 @@
 #include <memory>
 // IWYU pragma: end_keep
 
-#include "TamagoyakiDialect.h.inc"
+#include "EquivalenceDialect.h.inc"
 
 #define GET_OP_CLASSES
-#include "TamagoyakiOps.h.inc"
+#include "EquivalenceOps.h.inc"
 
-namespace mlir::tama {
+namespace mlir::equivalence {
 #define GEN_PASS_DECL
-#include "TamagoyakiPasses.h.inc"
+#include "EquivalencePasses.h.inc"
 
 #define GEN_PASS_REGISTRATION
-#include "TamagoyakiPasses.h.inc"
-} // namespace mlir::tama
+#include "EquivalencePasses.h.inc"
+} // namespace mlir::equivalence
 
 #define GET_TYPEDEF_CLASSES
-#include "TamagoyakiTypes.h.inc"
+#include "EquivalenceTypes.h.inc"
 
-#endif // TAMAGOYAKI_TAMADIALECT_H
+#endif // EQUIVALENCE_EQUIVALENCEDIALECT_H

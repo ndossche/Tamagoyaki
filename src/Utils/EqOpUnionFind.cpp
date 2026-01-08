@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Utils/EqOpUnionFind.h"
-#include "TamagoyakiDialect.h"
+#include "EquivalenceDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeRange.h"
@@ -28,31 +28,33 @@ using namespace mlir::tamatch;
 
 SmallVector<Value> mlir::tamatch::getEqVals(PatternRewriter &rewriter,
                                             Value val) {
-  if (auto eqOp = dyn_cast<tama::EqOp>(val.getDefiningOp())) {
+  if (auto eqOp = dyn_cast<equivalence::EqOp>(val.getDefiningOp())) {
     return llvm::to_vector(eqOp->getOperands());
   }
   return {val};
 }
 
 Value mlir::tamatch::getEqResult(PatternRewriter &rewriter, Value val) {
-  if (auto eqOp =
-          val.hasOneUse() ? dyn_cast<tama::EqOp>(*val.user_begin()) : nullptr) {
+  if (auto eqOp = val.hasOneUse()
+                      ? dyn_cast<equivalence::EqOp>(*val.user_begin())
+                      : nullptr) {
     return eqOp.getResult();
   }
   return val;
 }
 
-tama::EqOp mlir::tamatch::getEqOp(PatternRewriter &rewriter, Value val) {
-  if (auto eqOp =
-          val.hasOneUse() ? dyn_cast<tama::EqOp>(*val.user_begin()) : nullptr) {
+equivalence::EqOp mlir::tamatch::getEqOp(PatternRewriter &rewriter, Value val) {
+  if (auto eqOp = val.hasOneUse()
+                      ? dyn_cast<equivalence::EqOp>(*val.user_begin())
+                      : nullptr) {
     return eqOp;
   }
 
   // If the value is not part of an eclass yet, create one
   OpBuilder builder(val.getContext());
   builder.setInsertionPointAfterValue(val);
-  auto eqOp = tama::EqOp::create(builder, val.getLoc(),
-                                 TypeRange{val.getType()}, ValueRange{val});
+  auto eqOp = equivalence::EqOp::create(
+      builder, val.getLoc(), TypeRange{val.getType()}, ValueRange{val});
   rewriter.replaceUsesWithIf(
       val, eqOp.getResult(),
       [&eqOp](OpOperand &operand) { return operand.getOwner() != eqOp; });
@@ -60,16 +62,16 @@ tama::EqOp mlir::tamatch::getEqOp(PatternRewriter &rewriter, Value val) {
 }
 
 void EqOpUnionFind::eqUnion(PatternRewriter &rewriter, Value a, Value b) {
-  tama::EqOp eqA = getEqOp(rewriter, a);
-  tama::EqOp eqB = getEqOp(rewriter, b);
+  equivalence::EqOp eqA = getEqOp(rewriter, a);
+  equivalence::EqOp eqB = getEqOp(rewriter, b);
 
   if (isEquivalent(eqA, eqB))
     return;
 
   // TODO: unionSets always treats the first argument as leader
   // this might lead to an unbalanced union-find?
-  tama::EqOp leader = *unionFind.unionSets(eqA, eqB);
-  tama::EqOp other = eqB;
+  equivalence::EqOp leader = *unionFind.unionSets(eqA, eqB);
+  equivalence::EqOp other = eqB;
 
   rewriter.replaceAllUsesWith(other.getResult(), leader.getResult());
 
@@ -108,16 +110,16 @@ void EqOpUnionFind::eqUnion(PatternRewriter &rewriter, ValueRange a,
     eqUnion(rewriter, va, vb);
 }
 
-bool EqOpUnionFind::isEquivalent(tama::EqOp a, tama::EqOp b) {
+bool EqOpUnionFind::isEquivalent(equivalence::EqOp a, equivalence::EqOp b) {
   return unionFind.isEquivalent(a, b);
 }
 
-void EqOpUnionFind::erase(tama::EqOp op) { unionFind.erase(op); }
+void EqOpUnionFind::erase(equivalence::EqOp op) { unionFind.erase(op); }
 
 bool EqOpUnionFind::rebuild(PatternRewriter &rewriter) {
   LLVM_DEBUG({
     llvm::dbgs() << "Starting rebuild. Content of worklist: \n";
-    for (tama::EqOp c : worklist) {
+    for (equivalence::EqOp c : worklist) {
       llvm::dbgs() << "\t" << c << "\n";
     }
   });
@@ -127,21 +129,21 @@ bool EqOpUnionFind::rebuild(PatternRewriter &rewriter) {
 
   while (!worklist.empty()) {
     // Create an ordered set of unique leaders from the worklist
-    llvm::SetVector<tama::EqOp> todo;
-    for (tama::EqOp c : worklist) {
+    llvm::SetVector<equivalence::EqOp> todo;
+    for (equivalence::EqOp c : worklist) {
       todo.insert(*unionFind.findLeader(c));
     }
     worklist.clear();
 
     // Repair each unique leader
-    for (tama::EqOp c : todo) {
+    for (equivalence::EqOp c : todo) {
       repair(rewriter, c);
     }
   }
   return true;
 }
 
-void EqOpUnionFind::repair(PatternRewriter &rewriter, tama::EqOp eqOp) {
+void EqOpUnionFind::repair(PatternRewriter &rewriter, equivalence::EqOp eqOp) {
   // Get the canonical leader
   eqOp = *unionFind.findLeader(eqOp);
 
@@ -157,7 +159,7 @@ void EqOpUnionFind::repair(PatternRewriter &rewriter, tama::EqOp eqOp) {
 
   for (Operation *op1 : parentOps) {
     // Skip EqOp operations - they're the eclasses themselves
-    if (isa<tama::EqOp>(op1))
+    if (isa<equivalence::EqOp>(op1))
       continue;
 
     // Look up in hash-consing table to find equivalent operation
@@ -168,11 +170,11 @@ void EqOpUnionFind::repair(PatternRewriter &rewriter, tama::EqOp eqOp) {
 
       // Collect eclass pairs before replacement (since replacement invalidates
       // uses)
-      SmallVector<std::pair<tama::EqOp, tama::EqOp>> eclassPairs;
+      SmallVector<std::pair<equivalence::EqOp, equivalence::EqOp>> eclassPairs;
       for (auto [res1, res2] :
            llvm::zip(op1->getResults(), op2->getResults())) {
-        tama::EqOp eclass1 = getEqOp(rewriter, res1);
-        tama::EqOp eclass2 = getEqOp(rewriter, res2);
+        equivalence::EqOp eclass1 = getEqOp(rewriter, res1);
+        equivalence::EqOp eclass2 = getEqOp(rewriter, res2);
         eclassPairs.emplace_back(eclass1, eclass2);
       }
 

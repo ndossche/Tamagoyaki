@@ -1,4 +1,4 @@
-//===- TamagoyakiCAPI.h - CAPI for tama dialect ----*- C -*-===//
+//===- EquivalenceCAPI.h - CAPI for equivalence dialect ----*- C -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TAMAGOYAKI_C_DIALECTS_H
-#define TAMAGOYAKI_C_DIALECTS_H
+#ifndef EQUIVALENCE_C_DIALECTS_H
+#define EQUIVALENCE_C_DIALECTS_H
 
 #include "mlir-c/IR.h"
 
@@ -15,19 +15,19 @@
 extern "C" {
 #endif
 
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Tama, tama);
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Equivalence, equivalence);
 
 //===---------------------------------------------------------------------===//
 // CustomType
 //===---------------------------------------------------------------------===//
 
-MLIR_CAPI_EXPORTED bool mlirTypeIsATamaCustomType(MlirType type);
+MLIR_CAPI_EXPORTED bool mlirTypeIsAEquivalenceCustomType(MlirType type);
 
-MLIR_CAPI_EXPORTED MlirType mlirTamaCustomTypeGet(MlirContext ctx,
-                                                  MlirStringRef value);
+MLIR_CAPI_EXPORTED MlirType mlirEquivalenceCustomTypeGet(MlirContext ctx,
+                                                         MlirStringRef value);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // TAMAGOYAKI_C_DIALECTS_H
+#endif // EQUIVALENCE_C_DIALECTS_H
