@@ -9,7 +9,7 @@
 #include "TamatchDialect.h"
 
 #include "EquivalenceDialect.h"
-#include "Utils/EqOpUnionFind.h"
+#include "Utils/ClassOpUnionFind.h"
 #include "Utils/HashConsPatternRewriter.h"
 #include "Utils/MutableScopedHashTable.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
@@ -123,19 +123,19 @@ struct TamatchSaturatePass
     patternModule.getOperation()->remove();
     PDLPatternModule pdlPattern(patternModule);
 
-    EqOpUnionFind uf{};
+    ClassOpUnionFind uf{};
     HashConsPatternRewriter hashconsRewriter(module.getContext());
 
     irModule.walk([&](Operation *e) {
-      equivalence::EGraphOp egraph = llvm::dyn_cast<equivalence::EGraphOp>(*e);
-      if (!egraph) {
+      equivalence::GraphOp graph = llvm::dyn_cast<equivalence::GraphOp>(*e);
+      if (!graph) {
         return;
       }
-      Region *region = &(egraph.getBody());
+      Region *region = &(graph.getBody());
       auto scope = hashconsRewriter.createRootScope(region);
 
-      egraph->walk([&scope](Operation *op) {
-        if (dyn_cast<equivalence::EqOp>(*op)) {
+      graph->walk([&scope](Operation *op) {
+        if (dyn_cast<equivalence::ClassOp>(*op)) {
           return;
         }
         scope->insert(op, op);
@@ -143,8 +143,8 @@ struct TamatchSaturatePass
     });
 
     // Register custom rewrite functions
-    pdlPattern.registerRewriteFunction("get_eq_vals", getEqVals);
-    pdlPattern.registerRewriteFunction("get_eq_result", getEqResult);
+    pdlPattern.registerRewriteFunction("get_class_vals", getClassVals);
+    pdlPattern.registerRewriteFunction("get_class_result", getClassResult);
     pdlPattern.registerRewriteFunction("union", [&uf](PatternRewriter &rewriter,
                                                       PDLResultList &results,
                                                       ArrayRef<PDLValue> args) {
@@ -155,15 +155,17 @@ struct TamatchSaturatePass
 
       // Value, Value
       if (arg0.isa<Value>() && arg1.isa<Value>()) {
-        uf.eqUnion(rewriter, arg0.cast<Value>(), arg1.cast<Value>());
+        uf.classUnion(rewriter, arg0.cast<Value>(), arg1.cast<Value>());
       }
       // Operation*, ValueRange
       else if (arg0.isa<Operation *>() && arg1.isa<ValueRange>()) {
-        uf.eqUnion(rewriter, arg0.cast<Operation *>(), arg1.cast<ValueRange>());
+        uf.classUnion(rewriter, arg0.cast<Operation *>(),
+                      arg1.cast<ValueRange>());
       }
       // ValueRange, ValueRange
       else if (arg0.isa<ValueRange>() && arg1.isa<ValueRange>()) {
-        uf.eqUnion(rewriter, arg0.cast<ValueRange>(), arg1.cast<ValueRange>());
+        uf.classUnion(rewriter, arg0.cast<ValueRange>(),
+                      arg1.cast<ValueRange>());
       } else {
         llvm_unreachable("union: unsupported argument types");
       }

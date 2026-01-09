@@ -76,12 +76,12 @@ def Equivalence_FooOp : Equivalence_Op<"foo", [Pure, SameOperandsAndResultType]>
 // definition of the YieldOp (equivalence.yield)
 def Equivalence_YieldOp : Equivalence_Op<"yield", [
     Terminator, 
-    HasParent<"EGraphOp">
+    HasParent<"GraphOp">
 ]> {
-    let summary = "Yield values from an egraph region";
+    let summary = "Yield values from a graph region";
     let description = [{
-        The `equivalence.yield` operation yields values from a `equivalence.egraph` region.
-        It serves as the terminator for the egraph block.
+        The `equivalence.yield` operation yields values from a `equivalence.graph` region.
+        It serves as the terminator for the graph block.
     }];
 
     let arguments = (ins Variadic<AnyType>:$values);
@@ -98,14 +98,14 @@ def Equivalence_YieldOp : Equivalence_Op<"yield", [
 
 }
 
-def Equivalence_EGraphOp : Equivalence_Op<"egraph", [
+def Equivalence_GraphOp : Equivalence_Op<"graph", [
     // Ensures the region has one block and ends with a equivalence.yield
     SingleBlockImplicitTerminator<"YieldOp">,
     IsolatedFromAbove,
  ]> {
-    let summary = "An e-graph region operation";
+    let summary = "A graph region operation";
     let description = [{
-        The `equivalence.egraph` operation contains a single-block region in which
+        The `equivalence.graph` operation contains a single-block region in which
         equivalence classes and other operations are defined. Importantly,
         operations in the region are unordered, value uses can come before
         their definitions.
@@ -121,7 +121,7 @@ def Equivalence_EGraphOp : Equivalence_Op<"egraph", [
     }];
 }
 
-def Equivalence_EqOp : Equivalence_Op<"eq", [
+def Equivalence_ClassOp : Equivalence_Op<"class", [
     Pure, 
     SameOperandsAndResultType,
 ]> {
@@ -143,8 +143,8 @@ def Equivalence_EqOp : Equivalence_Op<"eq", [
 
     // Verify the following:
     // 1. At least one operand.
-    // 2. Operands cannot be result of other EqOp.
-    // 3. Operands must be used only by this EqOp.
+    // 2. Operands cannot be result of other ClassOp.
+    // 3. Operands must be used only by this ClassOp.
     let hasVerifier = 1; 
 }
 
@@ -152,8 +152,8 @@ def Equivalence_EqOp : Equivalence_Op<"eq", [
 // Other Definitions
 //===----------------------------------------------------------------------===//
 
-def EquivalenceInsertEgraph : Pass<"equivalence-insert-egraph", "::mlir::ModuleOp"> {
-  let summary = "Replaces a function body with a equivalence.egraph operation.";
+def EquivalenceInsertGraph : Pass<"equivalence-insert-graph", "::mlir::ModuleOp"> {
+  let summary = "Replaces a function body with a equivalence.graph operation.";
   let dependentDialects = ["::mlir::equivalence::EquivalenceDialect", "::mlir::func::FuncDialect"];
 }
   

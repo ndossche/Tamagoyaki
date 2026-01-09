@@ -9,8 +9,8 @@ module @patterns {
         ^bb_success:
         // the pdl_interp bytecode VM cannot be extended with custom operations, except by using
         // pdl_interp.apply_rewrite or apply_constraint:
-        // %eqs = tamatch.eq_vals(%0) : !pdl.range<value>
-        %eqvals = pdl_interp.apply_rewrite "get_eq_vals"(%0 : !pdl.value) : !pdl.range<value>
+        // %eqs = tamatch.class_vals(%0) : !pdl.range<value>
+        %eqvals = pdl_interp.apply_rewrite "get_class_vals"(%0 : !pdl.value) : !pdl.range<value>
         
         pdl_interp.foreach %eqval : !pdl.value in %eqvals {
             %op = pdl_interp.get_defining_op of %eqval : !pdl.value
@@ -48,10 +48,10 @@ module @patterns {
             pdl_interp.check_attribute %6 is 2 : i32 -> ^bb15, ^bb_continue
         ^bb15:  // pred: ^bb14
             %orig_7 = pdl_interp.get_result 0 of %op
-            
+             
             // after every pdl_interp.get_result:
-            //%7 = tamatch.eq_result %orig_7 : !pdl.value
-            %7 = pdl_interp.apply_rewrite "get_eq_result"(%orig_7 : !pdl.value) : !pdl.value
+            //%7 = tamatch.class_result %orig_7 : !pdl.value
+            %7 = pdl_interp.apply_rewrite "get_class_result"(%orig_7 : !pdl.value) : !pdl.value
             
             pdl_interp.is_not_null %7 : !pdl.value -> ^bb16, ^bb_continue
         ^bb16:  // pred: ^bb15
@@ -88,7 +88,7 @@ module @patterns {
             // tamatch.union(%arg1, %5)
             pdl_interp.apply_rewrite "union"(%arg1, %5 : !pdl.operation, !pdl.range<value>)
             // TODO: note that if the result of the operation (%5) would be used in the further rewrite, this would be incorrect.
-            // After a union, uses of the result should be rerouted to the EqOp result (union should return those).
+            // After a union, uses of the result should be rerouted to the ClassOp result (union should return those).
             
             pdl_interp.finalize
         }
@@ -97,55 +97,55 @@ module @patterns {
 
 module @ir {
 
-    // CHECK:      func.func @egraph_with_eqs(%arg0: i32) -> i32 {
-    // CHECK-NEXT:   %0 = tama.egraph %arg0 : i32 -> i32 {
+    // CHECK:      func.func @graph_with_eqs(%arg0: i32) -> i32 {
+    // CHECK-NEXT:   %0 = equivalence.graph %arg0 : i32 -> i32 {
     // CHECK-NEXT:   ^bb0(%arg1: i32):
-    // CHECK-NEXT:     %1 = tama.eq %arg1 : i32
+    // CHECK-NEXT:     %1 = equivalence.class %arg1 : i32
     // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
-    // CHECK-NEXT:     %2 = tama.eq %c2_i32 : i32
+    // CHECK-NEXT:     %2 = equivalence.class %c2_i32 : i32
     // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
     // CHECK-NEXT:     %3 = arith.shli %1, %c1_i32 : i32
     // CHECK-NEXT:     %4 = arith.muli %1, %2 : i32
     // CHECK-NEXT:     %5 = "test.op"() : () -> i32
-    // CHECK-NEXT:     %6 = tama.eq %5, %4, %3 : i32
-    // CHECK-NEXT:     tama.yield %6 : i32
+    // CHECK-NEXT:     %6 = equivalence.class %5, %4, %3 : i32
+    // CHECK-NEXT:     equivalence.yield %6 : i32
     // CHECK-NEXT:   }
     // CHECK-NEXT:   return %0 : i32
     // CHECK-NEXT: }
 
-    func.func @egraph_with_eqs(%arg0: i32) -> i32 {
-        %0 = tama.egraph %arg0 : i32 -> i32 {
+    func.func @graph_with_eqs(%arg0: i32) -> i32 {
+        %0 = equivalence.graph %arg0 : i32 -> i32 {
             ^bb0(%arg1: i32):
-            %1 = tama.eq %arg1 : i32
+            %1 = equivalence.class %arg1 : i32
             %c2_i32 = arith.constant 2 : i32
-            %2 = tama.eq %c2_i32 : i32
+            %2 = equivalence.class %c2_i32 : i32
             %3 = arith.muli %1, %2 : i32
             %someotherval = "test.op"() : () -> (i32)
-            %4 = tama.eq %someotherval, %3 : i32
-            tama.yield %4 : i32
+            %4 = equivalence.class %someotherval, %3 : i32
+            equivalence.yield %4 : i32
         }
         return %0 : i32
     }
     
     
-    // CHECK:      func.func @egraph_without_eqs(%arg0: i32) -> i32 {
-    // CHECK-NEXT:   %0 = tama.egraph %arg0 : i32 -> i32 {
+    // CHECK:      func.func @graph_without_eqs(%arg0: i32) -> i32 {
+    // CHECK-NEXT:   %0 = equivalence.graph %arg0 : i32 -> i32 {
     // CHECK-NEXT:   ^bb0(%arg1: i32):
     // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
     // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
     // CHECK-NEXT:     %1 = arith.shli %arg1, %c1_i32 : i32
     // CHECK-NEXT:     %2 = arith.muli %arg1, %c2_i32 : i32
-    // CHECK-NEXT:     %3 = tama.eq %2, %1 : i32
-    // CHECK-NEXT:     tama.yield %3 : i32
+    // CHECK-NEXT:     %3 = equivalence.class %2, %1 : i32
+    // CHECK-NEXT:     equivalence.yield %3 : i32
     // CHECK-NEXT:   }
     // CHECK-NEXT:   return %0 : i32
     // CHECK-NEXT: }
-    func.func @egraph_without_eqs(%arg0: i32) -> i32 {
-        %0 = tama.egraph %arg0 : i32 -> i32 {
+    func.func @graph_without_eqs(%arg0: i32) -> i32 {
+        %0 = equivalence.graph %arg0 : i32 -> i32 {
             ^bb0(%arg1: i32):
             %c2_i32 = arith.constant 2 : i32
             %3 = arith.muli %arg1, %c2_i32 : i32
-            tama.yield %3 : i32
+            equivalence.yield %3 : i32
         }
         return %0 : i32
     }

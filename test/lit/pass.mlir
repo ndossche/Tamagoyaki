@@ -1,4 +1,4 @@
-// RUN: tamagoyaki-opt %s --pass-pipeline="builtin.module(tama-switch-bar-foo)" | FileCheck %s
+// RUN: tamagoyaki-opt %s --pass-pipeline="builtin.module(equivalence-switch-bar-foo)" | FileCheck %s
 
 module {
   // CHECK-LABEL: func @foo()

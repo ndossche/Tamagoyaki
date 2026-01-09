@@ -51,21 +51,21 @@ void EquivalenceDialect::initialize() {
 #define GET_OP_CLASSES
 #include "EquivalenceOps.cpp.inc"
 
-LogicalResult EqOp::verify() {
+LogicalResult ClassOp::verify() {
   if (getInputs().empty()) {
     return emitOpError("must have at least one operand");
   }
 
   for (Value operand : getInputs()) {
     Operation *defOp = operand.getDefiningOp();
-    if (defOp && isa<EqOp>(defOp)) {
-      return emitOpError("result of an eq operation cannot be used as an "
-                         "operand of another eq");
+    if (defOp && isa<ClassOp>(defOp)) {
+      return emitOpError("result of a class operation cannot be used as an "
+                         "operand of another class");
     }
 
     for (Operation *user : operand.getUsers()) {
       if (user != getOperation()) {
-        return emitOpError("operands must only be used by the eq operation");
+        return emitOpError("operands must only be used by the class operation");
       }
     }
   }
@@ -78,24 +78,24 @@ LogicalResult EqOp::verify() {
 //===----------------------------------------------------------------------===//
 
 namespace mlir::equivalence {
-#define GEN_PASS_DEF_EQUIVALENCEINSERTEGRAPH
+#define GEN_PASS_DEF_EQUIVALENCEINSERTGRAPH
 #define GEN_PASS_DEF_EQUIVALENCESWITCHBARFOO
 #include "EquivalencePasses.h.inc"
 
 namespace {
 
 /// Recursively wraps all values (block arguments and operation results) in
-/// EqOps. For each value, creates an EqOp and replaces all uses of the original
-/// value with the EqOp's result.
-void wrapValuesInEqOps(Region &region, OpBuilder &builder) {
+/// ClassOps. For each value, creates a ClassOp and replaces all uses of the
+/// original value with the ClassOp's result.
+void wrapValuesInClassOps(Region &region, OpBuilder &builder) {
   for (Block &block : region) {
     // Wrap block arguments at the start of the block
     if (!block.getArguments().empty()) {
       builder.setInsertionPointToStart(&block);
       for (BlockArgument arg : block.getArguments()) {
-        auto eqOp = EqOp::create(builder, arg.getLoc(),
-                                 TypeRange{arg.getType()}, ValueRange{arg});
-        arg.replaceAllUsesExcept(eqOp.getResult(), eqOp);
+        auto classOp = ClassOp::create(
+            builder, arg.getLoc(), TypeRange{arg.getType()}, ValueRange{arg});
+        arg.replaceAllUsesExcept(classOp.getResult(), classOp);
       }
     }
 
@@ -106,35 +106,35 @@ void wrapValuesInEqOps(Region &region, OpBuilder &builder) {
     }
 
     for (Operation *op : ops) {
-      // Skip EqOp to avoid wrapping EqOp results (which would violate
+      // Skip ClassOp to avoid wrapping ClassOp results (which would violate
       // verification)
-      if (isa<EqOp>(op))
+      if (isa<ClassOp>(op))
         continue;
 
       // Recursively process nested regions first
       for (Region &nestedRegion : op->getRegions()) {
-        wrapValuesInEqOps(nestedRegion, builder);
+        wrapValuesInClassOps(nestedRegion, builder);
       }
 
-      // Wrap each operation result in an EqOp
+      // Wrap each operation result in a ClassOp
       if (op->getNumResults() > 0) {
         builder.setInsertionPointAfter(op);
         for (OpResult result : op->getResults()) {
-          auto eqOp =
-              EqOp::create(builder, result.getLoc(),
-                           TypeRange{result.getType()}, ValueRange{result});
-          result.replaceAllUsesExcept(eqOp.getResult(), eqOp);
+          auto classOp =
+              ClassOp::create(builder, result.getLoc(),
+                              TypeRange{result.getType()}, ValueRange{result});
+          result.replaceAllUsesExcept(classOp.getResult(), classOp);
         }
       }
     }
   }
 }
 
-class EquivalenceInsertEgraph
-    : public impl::EquivalenceInsertEgraphBase<EquivalenceInsertEgraph> {
+class EquivalenceInsertGraph
+    : public impl::EquivalenceInsertGraphBase<EquivalenceInsertGraph> {
 public:
-  using impl::EquivalenceInsertEgraphBase<
-      EquivalenceInsertEgraph>::EquivalenceInsertEgraphBase;
+  using impl::EquivalenceInsertGraphBase<
+      EquivalenceInsertGraph>::EquivalenceInsertGraphBase;
   void runOnOperation() final {
     ModuleOp module = getOperation();
 
@@ -173,14 +173,14 @@ private:
 
     Location loc = funcOp.getLoc();
 
-    // Create the egraphOp at the start of the block
+    // Create the graphOp at the start of the block
     FunctionType funcType = funcOp.getFunctionType();
     OpBuilder builder(funcOp->getContext());
-    auto egraphOp = EGraphOp::create(builder, loc, funcType.getResults(), {});
+    auto graphOp = GraphOp::create(builder, loc, funcType.getResults(), {});
 
-    // Put the single-block function body in the egraphOp
-    Region &egraphBody = egraphOp.getBody();
-    egraphBody.takeBody(funcBody);
+    // Put the single-block function body in the graphOp
+    Region &graphBody = graphOp.getBody();
+    graphBody.takeBody(funcBody);
 
     // Rewrite the func.return to a tama.yield
     builder.setInsertionPoint(returnOp);
@@ -188,7 +188,7 @@ private:
     returnOp.erase();
 
     if (insertSingleElementEqs) {
-      wrapValuesInEqOps(egraphBody, builder);
+      wrapValuesInClassOps(graphBody, builder);
     }
 
     // Create a new function body
@@ -196,14 +196,14 @@ private:
         &funcBody, funcBody.end(), funcType.getInputs(),
         SmallVector<Location>(funcType.getNumInputs(), loc));
 
-    egraphOp->setOperands(newEntryBlock->getArguments());
+    graphOp->setOperands(newEntryBlock->getArguments());
 
-    // Insert the egraphOp into the new block
+    // Insert the graphOp into the new block
     builder.setInsertionPointToStart(newEntryBlock);
-    builder.insert(egraphOp);
+    builder.insert(graphOp);
 
-    // Create a return that returns the egraphOp's results
-    func::ReturnOp::create(builder, loc, egraphOp->getResults());
+    // Create a return that returns the graphOp's results
+    func::ReturnOp::create(builder, loc, graphOp->getResults());
 
     return success();
   }

@@ -24,7 +24,7 @@ add_mlir_dialect_library(
   MLIRTamatch
   TamatchDialect.cpp
   Utils/MutableScopedHashTable.cpp
-  Utils/EqOpUnionFind.cpp
+  Utils/ClassOpUnionFind.cpp
   Utils/HashConsPatternRewriter.cpp
 
   # to silence LLVMProcessSources.cmake:116

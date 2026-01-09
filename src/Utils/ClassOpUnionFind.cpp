@@ -1,4 +1,5 @@
-//===- EqOpUnionFind.cpp - Union-find data structure for EqOp ---*- C++ -*-===//
+//===- ClassOpUnionFind.cpp - Union-find data structure for ClassOp ---*- C++
+//-*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Utils/EqOpUnionFind.h"
+#include "Utils/ClassOpUnionFind.h"
 #include "EquivalenceDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
@@ -26,52 +27,53 @@
 using namespace mlir;
 using namespace mlir::tamatch;
 
-SmallVector<Value> mlir::tamatch::getEqVals(PatternRewriter &rewriter,
-                                            Value val) {
-  if (auto eqOp = dyn_cast<equivalence::EqOp>(val.getDefiningOp())) {
-    return llvm::to_vector(eqOp->getOperands());
+SmallVector<Value> mlir::tamatch::getClassVals(PatternRewriter &rewriter,
+                                               Value val) {
+  if (auto classOp = dyn_cast<equivalence::ClassOp>(val.getDefiningOp())) {
+    return llvm::to_vector(classOp->getOperands());
   }
   return {val};
 }
 
-Value mlir::tamatch::getEqResult(PatternRewriter &rewriter, Value val) {
-  if (auto eqOp = val.hasOneUse()
-                      ? dyn_cast<equivalence::EqOp>(*val.user_begin())
-                      : nullptr) {
-    return eqOp.getResult();
+Value mlir::tamatch::getClassResult(PatternRewriter &rewriter, Value val) {
+  if (auto classOp = val.hasOneUse()
+                         ? dyn_cast<equivalence::ClassOp>(*val.user_begin())
+                         : nullptr) {
+    return classOp.getResult();
   }
   return val;
 }
 
-equivalence::EqOp mlir::tamatch::getEqOp(PatternRewriter &rewriter, Value val) {
-  if (auto eqOp = val.hasOneUse()
-                      ? dyn_cast<equivalence::EqOp>(*val.user_begin())
-                      : nullptr) {
-    return eqOp;
+equivalence::ClassOp mlir::tamatch::getClassOp(PatternRewriter &rewriter,
+                                               Value val) {
+  if (auto classOp = val.hasOneUse()
+                         ? dyn_cast<equivalence::ClassOp>(*val.user_begin())
+                         : nullptr) {
+    return classOp;
   }
 
   // If the value is not part of an eclass yet, create one
   OpBuilder builder(val.getContext());
   builder.setInsertionPointAfterValue(val);
-  auto eqOp = equivalence::EqOp::create(
+  auto classOp = equivalence::ClassOp::create(
       builder, val.getLoc(), TypeRange{val.getType()}, ValueRange{val});
   rewriter.replaceUsesWithIf(
-      val, eqOp.getResult(),
-      [&eqOp](OpOperand &operand) { return operand.getOwner() != eqOp; });
-  return eqOp;
+      val, classOp.getResult(),
+      [&classOp](OpOperand &operand) { return operand.getOwner() != classOp; });
+  return classOp;
 }
 
-void EqOpUnionFind::eqUnion(PatternRewriter &rewriter, Value a, Value b) {
-  equivalence::EqOp eqA = getEqOp(rewriter, a);
-  equivalence::EqOp eqB = getEqOp(rewriter, b);
+void ClassOpUnionFind::classUnion(PatternRewriter &rewriter, Value a, Value b) {
+  equivalence::ClassOp classA = getClassOp(rewriter, a);
+  equivalence::ClassOp classB = getClassOp(rewriter, b);
 
-  if (isEquivalent(eqA, eqB))
+  if (isEquivalent(classA, classB))
     return;
 
   // TODO: unionSets always treats the first argument as leader
   // this might lead to an unbalanced union-find?
-  equivalence::EqOp leader = *unionFind.unionSets(eqA, eqB);
-  equivalence::EqOp other = eqB;
+  equivalence::ClassOp leader = *unionFind.unionSets(classA, classB);
+  equivalence::ClassOp other = classB;
 
   rewriter.replaceAllUsesWith(other.getResult(), leader.getResult());
 
@@ -95,31 +97,32 @@ void EqOpUnionFind::eqUnion(PatternRewriter &rewriter, Value a, Value b) {
   worklist.push_back(leader);
 }
 
-void EqOpUnionFind::eqUnion(PatternRewriter &rewriter, Operation *op,
-                            ValueRange vals) {
+void ClassOpUnionFind::classUnion(PatternRewriter &rewriter, Operation *op,
+                                  ValueRange vals) {
   assert(op->getNumResults() == vals.size() &&
          "Operation result count must match value range size");
   for (auto [result, val] : llvm::zip(op->getResults(), vals))
-    eqUnion(rewriter, result, val);
+    classUnion(rewriter, result, val);
 }
 
-void EqOpUnionFind::eqUnion(PatternRewriter &rewriter, ValueRange a,
-                            ValueRange b) {
+void ClassOpUnionFind::classUnion(PatternRewriter &rewriter, ValueRange a,
+                                  ValueRange b) {
   assert(a.size() == b.size() && "Value ranges must have equal size");
   for (auto [va, vb] : llvm::zip(a, b))
-    eqUnion(rewriter, va, vb);
+    classUnion(rewriter, va, vb);
 }
 
-bool EqOpUnionFind::isEquivalent(equivalence::EqOp a, equivalence::EqOp b) {
+bool ClassOpUnionFind::isEquivalent(equivalence::ClassOp a,
+                                    equivalence::ClassOp b) {
   return unionFind.isEquivalent(a, b);
 }
 
-void EqOpUnionFind::erase(equivalence::EqOp op) { unionFind.erase(op); }
+void ClassOpUnionFind::erase(equivalence::ClassOp op) { unionFind.erase(op); }
 
-bool EqOpUnionFind::rebuild(PatternRewriter &rewriter) {
+bool ClassOpUnionFind::rebuild(PatternRewriter &rewriter) {
   LLVM_DEBUG({
     llvm::dbgs() << "Starting rebuild. Content of worklist: \n";
-    for (equivalence::EqOp c : worklist) {
+    for (equivalence::ClassOp c : worklist) {
       llvm::dbgs() << "\t" << c << "\n";
     }
   });
@@ -129,23 +132,24 @@ bool EqOpUnionFind::rebuild(PatternRewriter &rewriter) {
 
   while (!worklist.empty()) {
     // Create an ordered set of unique leaders from the worklist
-    llvm::SetVector<equivalence::EqOp> todo;
-    for (equivalence::EqOp c : worklist) {
+    llvm::SetVector<equivalence::ClassOp> todo;
+    for (equivalence::ClassOp c : worklist) {
       todo.insert(*unionFind.findLeader(c));
     }
     worklist.clear();
 
     // Repair each unique leader
-    for (equivalence::EqOp c : todo) {
+    for (equivalence::ClassOp c : todo) {
       repair(rewriter, c);
     }
   }
   return true;
 }
 
-void EqOpUnionFind::repair(PatternRewriter &rewriter, equivalence::EqOp eqOp) {
+void ClassOpUnionFind::repair(PatternRewriter &rewriter,
+                              equivalence::ClassOp classOp) {
   // Get the canonical leader
-  eqOp = *unionFind.findLeader(eqOp);
+  classOp = *unionFind.findLeader(classOp);
 
   // Create scoped map for hash-consing parent operations
   llvm::DenseMap<Operation *, Operation *, SimpleOperationInfo> uniqueParents;
@@ -153,13 +157,13 @@ void EqOpUnionFind::repair(PatternRewriter &rewriter, equivalence::EqOp eqOp) {
   // Collect parent operations (operations that use this eclass's result)
   // Use SetVector to maintain insertion order while deduplicating
   llvm::SetVector<Operation *> parentOps;
-  for (OpOperand &use : eqOp.getResult().getUses()) {
+  for (OpOperand &use : classOp.getResult().getUses()) {
     parentOps.insert(use.getOwner());
   }
 
   for (Operation *op1 : parentOps) {
-    // Skip EqOp operations - they're the eclasses themselves
-    if (isa<equivalence::EqOp>(op1))
+    // Skip ClassOp operations - they're the eclasses themselves
+    if (isa<equivalence::ClassOp>(op1))
       continue;
 
     // Look up in hash-consing table to find equivalent operation
@@ -170,11 +174,12 @@ void EqOpUnionFind::repair(PatternRewriter &rewriter, equivalence::EqOp eqOp) {
 
       // Collect eclass pairs before replacement (since replacement invalidates
       // uses)
-      SmallVector<std::pair<equivalence::EqOp, equivalence::EqOp>> eclassPairs;
+      SmallVector<std::pair<equivalence::ClassOp, equivalence::ClassOp>>
+          eclassPairs;
       for (auto [res1, res2] :
            llvm::zip(op1->getResults(), op2->getResults())) {
-        equivalence::EqOp eclass1 = getEqOp(rewriter, res1);
-        equivalence::EqOp eclass2 = getEqOp(rewriter, res2);
+        equivalence::ClassOp eclass1 = getClassOp(rewriter, res1);
+        equivalence::ClassOp eclass2 = getClassOp(rewriter, res2);
         eclassPairs.emplace_back(eclass1, eclass2);
       }
 
@@ -194,7 +199,7 @@ void EqOpUnionFind::repair(PatternRewriter &rewriter, equivalence::EqOp eqOp) {
           eclass1->setOperands(uniqueOperands);
         } else {
           // Different eclasses - union them (this adds to worklist)
-          eqUnion(rewriter, eclass1.getResult(), eclass2.getResult());
+          classUnion(rewriter, eclass1.getResult(), eclass2.getResult());
         }
       }
     } else {

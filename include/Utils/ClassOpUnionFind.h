@@ -1,0 +1,72 @@
+//===- ClassOpUnionFind.h - Union-find data structure for ClassOp -----*- C++
+//-*-===//
+//
+// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef EQUIVALENCE_SRC_UTILS_CLASSOPUNIONFIND_H
+#define EQUIVALENCE_SRC_UTILS_CLASSOPUNIONFIND_H
+
+#include "EquivalenceDialect.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Value.h"
+#include "mlir/IR/ValueRange.h"
+#include "mlir/Support/LLVM.h"
+#include "llvm/ADT/EquivalenceClasses.h"
+
+namespace mlir::tamatch {
+
+/// Helper function to get all values from a ClassOp
+SmallVector<mlir::Value> getClassVals(mlir::PatternRewriter &rewriter,
+                                      mlir::Value val);
+
+/// Helper function to get the result of a ClassOp
+mlir::Value getClassResult(mlir::PatternRewriter &rewriter, mlir::Value val);
+
+/// Helper function to get or create a ClassOp for a value
+equivalence::ClassOp getClassOp(mlir::PatternRewriter &rewriter,
+                                mlir::Value val);
+
+/// Union-find data structure for managing equivalence classes of ClassOp
+class ClassOpUnionFind {
+public:
+  /// Union two individual values
+  void classUnion(mlir::PatternRewriter &rewriter, mlir::Value a,
+                  mlir::Value b);
+
+  /// Union an operation's results with corresponding values
+  void classUnion(mlir::PatternRewriter &rewriter, mlir::Operation *op,
+                  mlir::ValueRange vals);
+
+  /// Union two value ranges pairwise
+  void classUnion(mlir::PatternRewriter &rewriter, mlir::ValueRange a,
+                  mlir::ValueRange b);
+
+  /// Check if two values are in the same equivalence class
+  bool isEquivalent(equivalence::ClassOp a, equivalence::ClassOp b);
+
+  /// Erase a ClassOp from the union-find
+  void erase(equivalence::ClassOp op);
+
+  /// Repair the parents of each ClassOp in the worklist.
+  /// This also clears the worklist.
+  /// Returns false when the worklist was empty, otherwise true.
+  bool rebuild(PatternRewriter &rewriter);
+
+  /// Repair e-graph by potentially deduplicating the parents of
+  /// a merged ClassOp.
+  void repair(PatternRewriter &rewriter, equivalence::ClassOp classOp);
+
+  /// List of ClassOps whose parents potentially need to be repaired.
+  SmallVector<equivalence::ClassOp> worklist;
+
+private:
+  llvm::EquivalenceClasses<equivalence::ClassOp> unionFind;
+};
+
+} // namespace mlir::tamatch
+
+#endif // EQUIVALENCE_SRC_UTILS_CLASSOPUNIONFIND_H
