@@ -14,10 +14,6 @@ set(TAMAGOYAKI_TEST_DEPENDS
     not
     tamagoyaki-opt)
 
-if(MLIR_ENABLE_BINDINGS_PYTHON)
-    list(APPEND TAMAGOYAKI_TEST_DEPENDS TamagoyakiPythonModules)
-endif()
-
 add_lit_testsuite(
   check-tamagoyaki "Running the tamagoyaki regression tests"
   ${CMAKE_CURRENT_BINARY_DIR} DEPENDS ${TAMAGOYAKI_TEST_DEPENDS})
