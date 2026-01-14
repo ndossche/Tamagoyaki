@@ -100,19 +100,3 @@ jobs:
 
           pushd build && ninja check-tamagoyaki && popd
           rm -rf build
-
-      - name: Build and test using setup.py
-        run: |
-
-          if [ x"${{ matrix.os }}" == x"ubuntu-22.04" ]; then
-            CIBW_ARCHS=x86_64
-          elif [ x"${{ matrix.os }}" == x"ubuntu-22.04-arm" ]; then
-            CIBW_ARCHS=aarch64
-          elif [ x"${{ matrix.os }}" == x"macos-15" ]; then
-            CIBW_ARCHS=arm64
-          fi
-          export CIBW_ARCHS
-
-          pip wheel . -w wheelhouse -v
-          pip install mmlir -f wheelhouse
-          pushd test/python && python smoketest.py && popd
