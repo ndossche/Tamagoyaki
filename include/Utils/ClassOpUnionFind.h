@@ -23,8 +23,15 @@ namespace mlir::tamatch {
 SmallVector<mlir::Value> getClassVals(mlir::PatternRewriter &rewriter,
                                       mlir::Value val);
 
+/// Helper function to get the first value from a ClassOp
+mlir::Value getClassRepresentative(mlir::PatternRewriter &rewriter,
+                                   mlir::Value val);
+
 /// Helper function to get the result of a ClassOp
 mlir::Value getClassResult(mlir::PatternRewriter &rewriter, mlir::Value val);
+
+SmallVector<Value> getClassResults(mlir::PatternRewriter &rewriter,
+                                   mlir::ValueRange vals);
 
 /// Helper function to get or create a ClassOp for a value
 equivalence::ClassOp getClassOp(mlir::PatternRewriter &rewriter,
@@ -59,6 +66,8 @@ public:
   /// Repair e-graph by potentially deduplicating the parents of
   /// a merged ClassOp.
   void repair(PatternRewriter &rewriter, equivalence::ClassOp classOp);
+
+  equivalence::ClassOp findLeader(equivalence::ClassOp c);
 
   /// List of ClassOps whose parents potentially need to be repaired.
   SmallVector<equivalence::ClassOp> worklist;

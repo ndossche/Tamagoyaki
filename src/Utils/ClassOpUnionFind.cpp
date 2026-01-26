@@ -29,13 +29,24 @@ using namespace mlir::tamatch;
 
 SmallVector<Value> mlir::tamatch::getClassVals(PatternRewriter &rewriter,
                                                Value val) {
-  if (auto classOp = dyn_cast<equivalence::ClassOp>(val.getDefiningOp())) {
+  Operation *defOp = val.getDefiningOp();
+  if (defOp == nullptr) {
+    return {val};
+  } else if (auto classOp = dyn_cast<equivalence::ClassOp>(defOp)) {
     return llvm::to_vector(classOp->getOperands());
   }
   return {val};
 }
 
+Value mlir::tamatch::getClassRepresentative(PatternRewriter &rewriter,
+                                            Value val) {
+  return getClassVals(rewriter, val)[0];
+}
+
 Value mlir::tamatch::getClassResult(PatternRewriter &rewriter, Value val) {
+  if (val == nullptr) {
+    return val;
+  }
   if (auto classOp = val.hasOneUse()
                          ? dyn_cast<equivalence::ClassOp>(*val.user_begin())
                          : nullptr) {
@@ -44,8 +55,25 @@ Value mlir::tamatch::getClassResult(PatternRewriter &rewriter, Value val) {
   return val;
 }
 
+SmallVector<Value> mlir::tamatch::getClassResults(PatternRewriter &rewriter,
+                                                  ValueRange vals) {
+  SmallVector<Value> results;
+  results.reserve(vals.size());
+
+  for (Value val : vals) {
+    results.push_back(getClassResult(rewriter, val));
+  }
+
+  return results;
+}
+
 equivalence::ClassOp mlir::tamatch::getClassOp(PatternRewriter &rewriter,
                                                Value val) {
+
+  Operation *defOp = val.getDefiningOp();
+  if (defOp != nullptr && dyn_cast<equivalence::ClassOp>(*defOp)) {
+    return cast<equivalence::ClassOp>(*defOp);
+  }
   if (auto classOp = val.hasOneUse()
                          ? dyn_cast<equivalence::ClassOp>(*val.user_begin())
                          : nullptr) {
@@ -64,6 +92,10 @@ equivalence::ClassOp mlir::tamatch::getClassOp(PatternRewriter &rewriter,
 }
 
 void ClassOpUnionFind::classUnion(PatternRewriter &rewriter, Value a, Value b) {
+  if (a == b) {
+    return;
+  }
+
   equivalence::ClassOp classA = getClassOp(rewriter, a);
   equivalence::ClassOp classB = getClassOp(rewriter, b);
 
@@ -119,12 +151,20 @@ bool ClassOpUnionFind::isEquivalent(equivalence::ClassOp a,
 
 void ClassOpUnionFind::erase(equivalence::ClassOp op) { unionFind.erase(op); }
 
+equivalence::ClassOp ClassOpUnionFind::findLeader(equivalence::ClassOp c) {
+  auto it = unionFind.findLeader(c);
+  if (it == unionFind.member_end()) {
+    return c;
+  } else {
+    assert(unionFind.contains(c));
+    return *it;
+  }
+}
+
 bool ClassOpUnionFind::rebuild(PatternRewriter &rewriter) {
   LLVM_DEBUG({
-    llvm::dbgs() << "Starting rebuild. Content of worklist: \n";
-    for (equivalence::ClassOp c : worklist) {
-      llvm::dbgs() << "\t" << c << "\n";
-    }
+    llvm::dbgs() << "Starting rebuild. Worklist contains " << worklist.size()
+                 << " classes\n";
   });
 
   if (worklist.empty())
@@ -134,7 +174,7 @@ bool ClassOpUnionFind::rebuild(PatternRewriter &rewriter) {
     // Create an ordered set of unique leaders from the worklist
     llvm::SetVector<equivalence::ClassOp> todo;
     for (equivalence::ClassOp c : worklist) {
-      todo.insert(*unionFind.findLeader(c));
+      todo.insert(findLeader(c));
     }
     worklist.clear();
 
@@ -148,8 +188,11 @@ bool ClassOpUnionFind::rebuild(PatternRewriter &rewriter) {
 
 void ClassOpUnionFind::repair(PatternRewriter &rewriter,
                               equivalence::ClassOp classOp) {
+  if (classOp->getBlock() == nullptr) {
+    return;
+  }
   // Get the canonical leader
-  classOp = *unionFind.findLeader(classOp);
+  classOp = findLeader(classOp);
 
   // Create scoped map for hash-consing parent operations
   llvm::DenseMap<Operation *, Operation *, SimpleOperationInfo> uniqueParents;
@@ -184,6 +227,7 @@ void ClassOpUnionFind::repair(PatternRewriter &rewriter,
       }
 
       // Replace op1 with op2's results and erase op1
+      op1->dump();
       rewriter.replaceOp(op1, op2->getResults());
 
       // Process each result's eclass pair

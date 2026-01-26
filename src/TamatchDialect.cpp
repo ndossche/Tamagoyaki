@@ -144,7 +144,10 @@ struct TamatchSaturatePass
 
     // Register custom rewrite functions
     pdlPattern.registerRewriteFunction("get_class_vals", getClassVals);
+    pdlPattern.registerRewriteFunction("get_class_representative",
+                                       getClassRepresentative);
     pdlPattern.registerRewriteFunction("get_class_result", getClassResult);
+    pdlPattern.registerRewriteFunction("get_class_results", getClassResults);
     pdlPattern.registerRewriteFunction("union", [&uf](PatternRewriter &rewriter,
                                                       PDLResultList &results,
                                                       ArrayRef<PDLValue> args) {
@@ -211,16 +214,21 @@ struct TamatchSaturatePass
 
     do {
       nIters++;
-      LLVM_DEBUG(llvm::dbgs() << "Equality saturation: starting iteration "
-                              << nIters << "\n");
       if (nIters > maxIters) {
         break;
       }
+      LLVM_DEBUG(llvm::dbgs() << "Equality saturation: starting iteration "
+                              << nIters << "\n");
 
       bytecode->initializeMutableState(bytecodeState);
 
       // Walk the IR and collect ALL matches for ALL operations.
       irModule.walk([&](Operation *op) {
+        auto dialect = op->getDialect();
+        if (dialect != nullptr &&
+            isa<equivalence::EquivalenceDialect>(op->getDialect()))
+          return;
+
         SmallVector<mlir::detail::PDLByteCode::MatchResult, 4> opMatches;
 
         // Execute the bytecode matcher.
