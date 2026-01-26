@@ -16,6 +16,7 @@
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/RegionKindInterface.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
@@ -50,6 +51,10 @@ void EquivalenceDialect::initialize() {
 
 #define GET_OP_CLASSES
 #include "EquivalenceOps.cpp.inc"
+
+namespace mlir::equivalence {
+RegionKind GraphOp::getRegionKind(unsigned index) { return RegionKind::Graph; }
+} // namespace mlir::equivalence
 
 LogicalResult ClassOp::verify() {
   if (getInputs().empty()) {

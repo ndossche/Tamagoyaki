@@ -15,6 +15,8 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td" 
 include "mlir/Pass/PassBase.td"
 include "mlir/IR/AttrTypeBase.td"
+include "mlir/IR/RegionKindInterface.td"
+
 
 //===----------------------------------------------------------------------===//
 // Equivalence dialect definition.
@@ -102,6 +104,7 @@ def Equivalence_GraphOp : Equivalence_Op<"graph", [
     // Ensures the region has one block and ends with a equivalence.yield
     SingleBlockImplicitTerminator<"YieldOp">,
     IsolatedFromAbove,
+    DeclareOpInterfaceMethods<RegionKindInterface>,
  ]> {
     let summary = "A graph region operation";
     let description = [{
