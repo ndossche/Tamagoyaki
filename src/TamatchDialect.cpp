@@ -222,6 +222,7 @@ struct TamatchSaturatePass
 
       bytecode->initializeMutableState(bytecodeState);
 
+      int i = 0;
       // Walk the IR and collect ALL matches for ALL operations.
       irModule.walk([&](Operation *op) {
         auto dialect = op->getDialect();
@@ -238,13 +239,22 @@ struct TamatchSaturatePass
 
         for (auto &match : opMatches) {
           allMatches.push_back({op, std::move(match)});
+
+          i += 1;
+          LLVM_DEBUG({
+            llvm::dbgs() << "Recording rewrite " << i << " at root " << *op
+                         << "\n";
+          });
         }
       });
 
+      i = 0;
       // Apply rewrites for all collected matches.
       for (const auto &pm : allMatches) {
         // Set insertion point to the matched operation (standard PDL behavior)
         hashconsRewriter.setInsertionPoint(pm.op);
+        i += 1;
+        LLVM_DEBUG({ llvm::dbgs() << "Applying rewrite " << i << "\n"; });
 
         // Execute the rewrite. This will trigger the registered "union"
         // callback. We pass the same bytecodeState so it can access captured
@@ -252,8 +262,10 @@ struct TamatchSaturatePass
         (void)bytecode->rewrite(hashconsRewriter, pm.matchResult,
                                 bytecodeState);
       }
+      allMatches.clear();
       bytecodeState.cleanupAfterMatchAndRewrite();
     } while (uf.rebuild(hashconsRewriter));
+
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
         endTime - startTime);
