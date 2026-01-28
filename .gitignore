@@ -1,6 +1,7 @@
 *.trace
 tablegen_compile_commands.yml
 .zed
+*.inc
 
 CMakeLists.txt.user
 CMakeCache.txt
