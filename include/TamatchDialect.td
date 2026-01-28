@@ -81,4 +81,13 @@ def TamatchSaturatePass : Pass<"tamatch-saturate", "::mlir::ModuleOp"> {
     let dependentDialects = ["::mlir::tamatch::TamatchDialect"];
 }
 
+def TamatchSaturateBenchmarkPass : Pass<"tamatch-saturate-benchmark", "::mlir::ModuleOp"> {
+    let summary = "Run equality saturation N times for benchmarking/profiling.";
+    let description = [{
+        This pass runs the tamatch-saturate pass N times, cloning the IR module
+        each time to ensure fresh input. Useful for profiling and benchmarking.
+    }];
+    let dependentDialects = ["::mlir::tamatch::TamatchDialect"];
+}
+
 #endif // TAMATCH_DIALECT
