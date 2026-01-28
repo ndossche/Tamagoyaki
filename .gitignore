@@ -1,3 +1,7 @@
+*.trace
+tablegen_compile_commands.yml
+.zed
+
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
