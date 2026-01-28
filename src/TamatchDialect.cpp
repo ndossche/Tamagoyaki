@@ -185,7 +185,7 @@ struct TamatchSaturatePass
           }
           LLVM_DEBUG(llvm::dbgs() << "no duplicate, inserting into hashcons: "
                                   << *op << "\n");
-          hashconsRewriter.insert(op);
+          (void)hashconsRewriter.insert(op);
           return op;
         });
     patternList.add(std::move(pdlPattern));

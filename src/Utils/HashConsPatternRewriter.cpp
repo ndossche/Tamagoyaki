@@ -7,10 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "Utils/HashConsPatternRewriter.h"
+#include "EquivalenceDialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Region.h"
+#include "mlir/Support/LLVM.h"
 #include "llvm/Support/Debug.h"
 #include <cassert>
 #include <memory>
@@ -27,58 +29,87 @@ HashConsPatternRewriter::HashConsPatternRewriter(MLIRContext *ctx)
 void HashConsPatternRewriter::startOpModification(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "operation being modified (start): " << *op
                           << "\n");
-  erase(op);
+  if (dyn_cast<equivalence::ClassOp>(*op))
+    return;
+  (void)erase(op);
 }
 
 void HashConsPatternRewriter::cancelOpModification(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "operation being modified (cancel): " << *op
                           << "\n");
-  insert(op);
+  if (dyn_cast<equivalence::ClassOp>(*op))
+    return;
+  (void)insert(op);
 }
 
 void HashConsPatternRewriter::finalizeOpModification(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "operation being modified (finalize): " << *op
                           << "\n");
-  insert(op);
+  if (dyn_cast<equivalence::ClassOp>(*op))
+    return;
+  (void)insert(op);
   PatternRewriter::finalizeOpModification(op);
 }
 
-void HashConsPatternRewriter::erase(Operation *op) {
+void HashConsPatternRewriter::eraseOp(Operation *op) {
+  LLVM_DEBUG(llvm::dbgs() << "erasing operation: " << *op << "\n");
+  if (!isa<equivalence::ClassOp>(op)) {
+    (void)erase(op); // Remove from hash-cons table first
+  }
+  PatternRewriter::eraseOp(op); // Then actually erase the operation
+}
+
+LogicalResult HashConsPatternRewriter::erase(Operation *op) {
   Region *region = op->getParentRegion();
   if (!region) {
     LLVM_DEBUG(llvm::dbgs()
                << "erase: operation has no parent region: " << *op << "\n");
-    return;
+    return failure();
   }
 
   ScopedMapTy::ScopeTy *scope = getScope(region);
   if (!scope) {
     LLVM_DEBUG(llvm::dbgs() << "erase: no scope registered for region\n");
-    return;
+    return failure();
   }
 
-  scope->erase(op);
-  LLVM_DEBUG(llvm::dbgs() << "erased operation from hash-cons scope: " << *op
-                          << "\n");
+  bool erased = scope->erase(op);
+  LLVM_DEBUG({
+    if (erased) {
+      llvm::dbgs() << "erased operation from hash-cons scope: " << *op << "\n";
+    } else {
+      llvm::dbgs() << "did not find operation to erase " << *op << "\n";
+    }
+  });
+  return success();
 }
 
-void HashConsPatternRewriter::insert(Operation *op) {
+LogicalResult HashConsPatternRewriter::insert(Operation *op) {
   Region *region = op->getParentRegion();
   if (!region) {
     LLVM_DEBUG(llvm::dbgs()
                << "insert: operation has no parent region: " << *op << "\n");
-    return;
+    return failure();
   }
 
   ScopedMapTy::ScopeTy *scope = getScope(region);
   if (!scope) {
     LLVM_DEBUG(llvm::dbgs() << "insert: no scope registered for region\n");
-    return;
+    return failure();
+  }
+
+  // Check if an equivalent operation already exists in the scope
+  if (Operation *existing = scope->lookupOrDefault(op)) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "insert: equivalent operation already exists: " << *existing
+               << ", skipping insert of: " << *op << "\n");
+    return failure();
   }
 
   scope->insert(op, op);
   LLVM_DEBUG(llvm::dbgs() << "inserted operation into hash-cons scope: " << *op
                           << "\n");
+  return success();
 }
 
 Operation *HashConsPatternRewriter::lookup(Operation *op) {

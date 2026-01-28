@@ -14,6 +14,7 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Region.h"
+#include "mlir/Support/LLVM.h"
 #include "vendor/mlir/SimpleOperationInfo.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/Allocator.h"
@@ -40,11 +41,14 @@ public:
   void cancelOpModification(Operation *op) override;
   void finalizeOpModification(Operation *op) override;
 
-  /// Erase an operation from its region's hash-cons scope
-  void erase(Operation *op);
+  void eraseOp(Operation *op) override;
+
+  /// Erase an operation from its region's hash-cons scope.
+  /// Returns success if the operation was found and removed.
+  LogicalResult erase(Operation *op);
 
   /// Insert an operation into its region's hash-cons scope
-  void insert(Operation *op);
+  LogicalResult insert(Operation *op);
 
   /// Lookup an operation in its region's scope (searches parent scopes too)
   /// Returns nullptr if not found or no scope registered
