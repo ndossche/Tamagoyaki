@@ -191,64 +191,58 @@ void ClassOpUnionFind::repair(PatternRewriter &rewriter,
   if (classOp->getBlock() == nullptr) {
     return;
   }
-  // Get the canonical leader
   classOp = findLeader(classOp);
 
-  // Create scoped map for hash-consing parent operations
   llvm::DenseMap<Operation *, Operation *, SimpleOperationInfo> uniqueParents;
 
   // Collect parent operations (operations that use this eclass's result)
-  // Use SetVector to maintain insertion order while deduplicating
   llvm::SetVector<Operation *> parentOps;
   for (OpOperand &use : classOp.getResult().getUses()) {
     parentOps.insert(use.getOwner());
   }
 
+  // Collect pairs of duplicate operations to merge AFTER the loop
+  SmallVector<std::pair<Operation *, Operation *>> toMerge;
+
   for (Operation *op1 : parentOps) {
-    // Skip ClassOp operations - they're the eclasses themselves
     if (isa<equivalence::ClassOp>(op1))
       continue;
 
-    // Look up in hash-consing table to find equivalent operation
     Operation *op2 = uniqueParents.lookup(op1);
 
     if (op2) {
-      // Found an equivalent operation - need to merge their eclasses
-
-      // Collect eclass pairs before replacement (since replacement invalidates
-      // uses)
-      SmallVector<std::pair<equivalence::ClassOp, equivalence::ClassOp>>
-          eclassPairs;
-      for (auto [res1, res2] :
-           llvm::zip(op1->getResults(), op2->getResults())) {
-        equivalence::ClassOp eclass1 = getClassOp(rewriter, res1);
-        equivalence::ClassOp eclass2 = getClassOp(rewriter, res2);
-        eclassPairs.emplace_back(eclass1, eclass2);
-      }
-
-      // Replace op1 with op2's results and erase op1
-      op1->dump();
-      rewriter.replaceOp(op1, op2->getResults());
-
-      // Process each result's eclass pair
-      for (auto [eclass1, eclass2] : eclassPairs) {
-        if (eclass1 == eclass2) {
-          // Same eclass - just deduplicate operands
-          SmallPtrSet<Value, 8> seen;
-          SmallVector<Value> uniqueOperands;
-          for (Value operand : eclass1->getOperands()) {
-            if (seen.insert(operand).second)
-              uniqueOperands.push_back(operand);
-          }
-          eclass1->setOperands(uniqueOperands);
-        } else {
-          // Different eclasses - union them (this adds to worklist)
-          classUnion(rewriter, eclass1.getResult(), eclass2.getResult());
-        }
-      }
+      // Found an equivalent operation - record for later merging
+      toMerge.emplace_back(op1, op2);
     } else {
-      // No equivalent found, register this op
       uniqueParents[op1] = op1;
+    }
+  }
+
+  // Now perform all merges after we're done with the hash map
+  for (auto [op1, op2] : toMerge) {
+    // Collect eclass pairs before replacement
+    SmallVector<std::pair<equivalence::ClassOp, equivalence::ClassOp>>
+        eclassPairs;
+    for (auto [res1, res2] : llvm::zip(op1->getResults(), op2->getResults())) {
+      equivalence::ClassOp eclass1 = getClassOp(rewriter, res1);
+      equivalence::ClassOp eclass2 = getClassOp(rewriter, res2);
+      eclassPairs.emplace_back(eclass1, eclass2);
+    }
+
+    rewriter.replaceOp(op1, op2->getResults());
+
+    for (auto [eclass1, eclass2] : eclassPairs) {
+      if (eclass1 == eclass2) {
+        SmallPtrSet<Value, 8> seen;
+        SmallVector<Value> uniqueOperands;
+        for (Value operand : eclass1->getOperands()) {
+          if (seen.insert(operand).second)
+            uniqueOperands.push_back(operand);
+        }
+        eclass1->setOperands(uniqueOperands);
+      } else {
+        classUnion(rewriter, eclass1.getResult(), eclass2.getResult());
+      }
     }
   }
 }
