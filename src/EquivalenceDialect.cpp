@@ -11,6 +11,7 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/IRMapping.h"
@@ -20,6 +21,7 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
@@ -217,10 +219,18 @@ private:
 class EquivalenceSwitchBarFooRewriter : public OpRewritePattern<func::FuncOp> {
 public:
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(func::FuncOp op,
+  LogicalResult matchAndRewrite(func::FuncOp f_op,
                                 PatternRewriter &rewriter) const final {
-    if (op.getSymName() == "bar") {
-      rewriter.modifyOpInPlace(op, [&op]() { op.setSymName("foo"); });
+    for (Operation &op : f_op.getOps()) {
+      if (isSpeculatable(&op)) {
+        op.setAttr("speculatable", rewriter.getAttr<UnitAttr>());
+      }
+      if (isMemoryEffectFree(&op)) {
+        op.setAttr("memoryeffectfree", rewriter.getAttr<UnitAttr>());
+      }
+    }
+    if (f_op.getSymName() == "bar") {
+      rewriter.modifyOpInPlace(f_op, [&f_op]() { f_op.setSymName("foo"); });
       return success();
     }
     return failure();
@@ -236,7 +246,10 @@ public:
     RewritePatternSet patterns(&getContext());
     patterns.add<EquivalenceSwitchBarFooRewriter>(&getContext());
     FrozenRewritePatternSet patternSet(std::move(patterns));
-    if (failed(applyPatternsGreedily(getOperation(), patternSet)))
+    GreedyRewriteConfig config = GreedyRewriteConfig();
+    config.enableConstantCSE(false);
+    config.enableFolding(false);
+    if (failed(applyPatternsGreedily(getOperation(), patternSet, config)))
       signalPassFailure();
   }
 };
