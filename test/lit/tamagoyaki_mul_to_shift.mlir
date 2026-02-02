@@ -1,4 +1,4 @@
-// RUN: tamagoyaki-opt -tamatch-saturate %s -allow-unregistered-dialect | FileCheck %s
+// RUN: tamagoyaki-opt -ematch-saturate %s -allow-unregistered-dialect | FileCheck %s
 
 module @patterns {
     pdl_interp.func @matcher(%arg0: !pdl.operation) {
@@ -9,7 +9,7 @@ module @patterns {
         ^bb_success:
         // the pdl_interp bytecode VM cannot be extended with custom operations, except by using
         // pdl_interp.apply_rewrite or apply_constraint:
-        // %eqs = tamatch.class_vals(%0) : !pdl.range<value>
+        // %eqs = ematch.class_vals(%0) : !pdl.range<value>
         %eqvals = pdl_interp.apply_rewrite "get_class_vals"(%0 : !pdl.value) : !pdl.range<value>
         
         pdl_interp.foreach %eqval : !pdl.value in %eqvals {
@@ -50,7 +50,7 @@ module @patterns {
             %orig_7 = pdl_interp.get_result 0 of %op
              
             // after every pdl_interp.get_result:
-            //%7 = tamatch.class_result %orig_7 : !pdl.value
+            //%7 = ematch.class_result %orig_7 : !pdl.value
             %7 = pdl_interp.apply_rewrite "get_class_result"(%orig_7 : !pdl.value) : !pdl.value
             
             pdl_interp.is_not_null %7 : !pdl.value -> ^bb16, ^bb_continue
@@ -79,13 +79,13 @@ module @patterns {
              
             %orig_4 = pdl_interp.create_operation "arith.shli"(%arg0, %3 : !pdl.value, !pdl.value)  -> (%1 : !pdl.type)
             
-            // %4 = tamatch.dedup(%orig_4)
+            // %4 = ematch.dedup(%orig_4)
             %4 = pdl_interp.apply_rewrite "dedup"(%orig_4 : !pdl.operation) : !pdl.operation
             
             %5 = pdl_interp.get_results of %4 : !pdl.range<value>
             // pdl_interp.replace %arg1 with (%5 : !pdl.range<value>)
             // becomes:
-            // tamatch.union(%arg1, %5)
+            // ematch.union(%arg1, %5)
             pdl_interp.apply_rewrite "union"(%arg1, %5 : !pdl.operation, !pdl.range<value>)
             // TODO: note that if the result of the operation (%5) would be used in the further rewrite, this would be incorrect.
             // After a union, uses of the result should be rerouted to the ClassOp result (union should return those).

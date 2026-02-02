@@ -10,7 +10,7 @@
 #include <memory>
 #include <optional>
 
-namespace mlir::tamatch {
+namespace mlir::ematch {
 
 template <typename K, typename V, typename KInfo = llvm::DenseMapInfo<K>,
           typename AllocatorTy = llvm::MallocAllocator>
@@ -186,6 +186,6 @@ public:
   }
 };
 
-} // namespace mlir::tamatch
+} // namespace mlir::ematch
 
 #endif // MUTABLE_SCOPED_HASH_TABLE_H

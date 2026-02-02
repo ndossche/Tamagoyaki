@@ -5,14 +5,14 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
+#include "EmatchDialect.h"
 #include "EquivalenceDialect.h"
-#include "TamatchDialect.h"
 
 #include "HerbieMLIR.h"
 #include "RivalExternalModels.h"
 
 using namespace mlir::equivalence;
-using namespace mlir::tamatch;
+using namespace mlir::ematch;
 
 namespace herbie {
 #define GEN_PASS_REGISTRATION
@@ -22,7 +22,7 @@ namespace herbie {
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   registry.insert<mlir::equivalence::EquivalenceDialect,
-                  mlir::tamatch::TamatchDialect>();
+                  mlir::ematch::EmatchDialect>();
   registerAllDialects(registry);
 
   // Register Rival external models for RivalCompileableInterface

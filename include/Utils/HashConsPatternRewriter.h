@@ -21,12 +21,12 @@
 #include "llvm/Support/RecyclingAllocator.h"
 #include <memory>
 
-namespace mlir::tamatch {
+namespace mlir::ematch {
 
 /// Allocator type for hash consing
 using AllocatorTy = llvm::RecyclingAllocator<
     llvm::BumpPtrAllocator,
-    mlir::tamatch::MutableScopedHashTableVal<Operation *, Operation *>>;
+    mlir::ematch::MutableScopedHashTableVal<Operation *, Operation *>>;
 
 /// Scoped hash table type for operation deduplication
 using ScopedMapTy = MutableScopedHashTable<Operation *, Operation *,
@@ -73,6 +73,6 @@ private:
   llvm::DenseMap<Region *, std::unique_ptr<ScopedMapTy::ScopeTy>> scopeMap;
 };
 
-} // namespace mlir::tamatch
+} // namespace mlir::ematch
 
 #endif // TAMAGOYAKI_SRC_UTILS_HASHCONSPATTERNREWRITER_H

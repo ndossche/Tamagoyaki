@@ -18,10 +18,10 @@
 #include <memory>
 #include <utility>
 
-#define DEBUG_TYPE "tamatch"
+#define DEBUG_TYPE "ematch"
 
 using namespace mlir;
-using namespace mlir::tamatch;
+using namespace mlir::ematch;
 
 HashConsPatternRewriter::HashConsPatternRewriter(MLIRContext *ctx)
     : PatternRewriter(ctx) {}

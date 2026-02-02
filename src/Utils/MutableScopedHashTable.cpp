@@ -6,7 +6,7 @@
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/RecyclingAllocator.h"
 
-namespace mlir::tamatch {
+namespace mlir::ematch {
 
 // Explicit instantiations
 using AllocatorTy = llvm::RecyclingAllocator<
@@ -19,4 +19,4 @@ template class MutableScopedHashTableScope<Operation *, Operation *,
 template class MutableScopedHashTable<Operation *, Operation *,
                                       SimpleOperationInfo, AllocatorTy>;
 
-} // namespace mlir::tamatch
+} // namespace mlir::ematch

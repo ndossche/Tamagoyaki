@@ -21,8 +21,8 @@ add_mlir_dialect_library(
 )
 
 add_mlir_dialect_library(
-  MLIRTamatch
-  TamatchDialect.cpp
+  MLIREmatch
+  EmatchDialect.cpp
   Utils/MutableScopedHashTable.cpp
   Utils/ClassOpUnionFind.cpp
   Utils/HashConsPatternRewriter.cpp
@@ -34,8 +34,8 @@ add_mlir_dialect_library(
   ${PROJECT_SOURCE_DIR}/include
 
   DEPENDS
-  MLIRTamatchIncGen
-  copy_tamatch_generated_td_to_src_include
+  MLIREmatchIncGen
+  copy_ematch_generated_td_to_src_include
 
   LINK_LIBS PUBLIC
   MLIRIR
@@ -58,12 +58,12 @@ set(LIBS
     ${conversion_libs}
     MLIROptLib
     MLIREquivalence
-    MLIRTamatch
+    MLIREmatch
 )
 
 add_llvm_executable(tamagoyaki-opt tamagoyaki-opt.cpp)
 llvm_update_compile_flags(tamagoyaki-opt)
 target_link_libraries(tamagoyaki-opt PRIVATE ${LIBS})
-add_dependencies(tamagoyaki-opt MLIREquivalenceIncGen MLIRTamatchIncGen)
+add_dependencies(tamagoyaki-opt MLIREquivalenceIncGen MLIREmatchIncGen)
 
 mlir_check_all_link_libraries(tamagoyaki-opt)

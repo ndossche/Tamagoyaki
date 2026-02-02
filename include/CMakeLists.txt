@@ -66,9 +66,9 @@ add_custom_command(
 
 add_custom_target(copy_equivalence_generated_td_to_src_include DEPENDS ${equivalence_generated_files})
 
-# Tamatch dialect
-set(dialect Tamatch)
-set(dialect_namespace tamatch)
+# Ematch dialect
+set(dialect Ematch)
+set(dialect_namespace ematch)
 set(LLVM_TARGET_DEFINITIONS ${dialect}Dialect.td)
 
 mlir_tablegen(${dialect}Ops.h.inc -gen-op-decls)
@@ -86,7 +86,7 @@ set(PASS_H_INC_TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT})
 
 add_public_tablegen_target(MLIR${dialect}IncGen)
 
-set(tamatch_generated_files
+set(ematch_generated_files
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Ops.h.inc
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Ops.cpp.inc
   ${CMAKE_CURRENT_SOURCE_DIR}/${dialect}Dialect.h.inc
@@ -96,7 +96,7 @@ set(tamatch_generated_files
 
 # copy generated files from build dir to here
 add_custom_command(
-  OUTPUT ${tamatch_generated_files}
+  OUTPUT ${ematch_generated_files}
   DEPENDS MLIR${dialect}IncGen
   COMMENT "copying generated td files from build to src include dir"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -116,4 +116,4 @@ add_custom_command(
       ${DST}
 )
 
-add_custom_target(copy_tamatch_generated_td_to_src_include DEPENDS ${tamatch_generated_files})
+add_custom_target(copy_ematch_generated_td_to_src_include DEPENDS ${ematch_generated_files})

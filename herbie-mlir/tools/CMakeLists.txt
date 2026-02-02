@@ -9,7 +9,7 @@ set(LIBS
     MLIROptLib
     herbieMLIR
     MLIREquivalence
-    MLIRTamatch
+    MLIREmatch
     Rival
 )
 
@@ -23,6 +23,6 @@ target_include_directories(herbie-mlir-opt
 )
 
 target_link_libraries(herbie-mlir-opt PRIVATE ${LIBS})
-add_dependencies(herbie-mlir-opt HerbieMLIRPassesIncGen MLIREquivalenceIncGen MLIRTamatchIncGen buildRival)
+add_dependencies(herbie-mlir-opt HerbieMLIRPassesIncGen MLIREquivalenceIncGen MLIREmatchIncGen buildRival)
 
 mlir_check_all_link_libraries(herbie-mlir-opt)

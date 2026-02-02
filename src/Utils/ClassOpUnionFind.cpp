@@ -22,13 +22,13 @@
 #include <cassert>
 #include <utility>
 
-#define DEBUG_TYPE "tamatch"
+#define DEBUG_TYPE "ematch"
 
 using namespace mlir;
-using namespace mlir::tamatch;
+using namespace mlir::ematch;
 
-SmallVector<Value> mlir::tamatch::getClassVals(PatternRewriter &rewriter,
-                                               Value val) {
+SmallVector<Value> mlir::ematch::getClassVals(PatternRewriter &rewriter,
+                                              Value val) {
   Operation *defOp = val.getDefiningOp();
   if (defOp == nullptr) {
     return {val};
@@ -38,12 +38,12 @@ SmallVector<Value> mlir::tamatch::getClassVals(PatternRewriter &rewriter,
   return {val};
 }
 
-Value mlir::tamatch::getClassRepresentative(PatternRewriter &rewriter,
-                                            Value val) {
+Value mlir::ematch::getClassRepresentative(PatternRewriter &rewriter,
+                                           Value val) {
   return getClassVals(rewriter, val)[0];
 }
 
-Value mlir::tamatch::getClassResult(PatternRewriter &rewriter, Value val) {
+Value mlir::ematch::getClassResult(PatternRewriter &rewriter, Value val) {
   if (val == nullptr) {
     return val;
   }
@@ -55,8 +55,8 @@ Value mlir::tamatch::getClassResult(PatternRewriter &rewriter, Value val) {
   return val;
 }
 
-SmallVector<Value> mlir::tamatch::getClassResults(PatternRewriter &rewriter,
-                                                  ValueRange vals) {
+SmallVector<Value> mlir::ematch::getClassResults(PatternRewriter &rewriter,
+                                                 ValueRange vals) {
   SmallVector<Value> results;
   results.reserve(vals.size());
 
@@ -67,8 +67,8 @@ SmallVector<Value> mlir::tamatch::getClassResults(PatternRewriter &rewriter,
   return results;
 }
 
-equivalence::ClassOp mlir::tamatch::getClassOp(PatternRewriter &rewriter,
-                                               Value val) {
+equivalence::ClassOp mlir::ematch::getClassOp(PatternRewriter &rewriter,
+                                              Value val) {
 
   Operation *defOp = val.getDefiningOp();
   if (defOp != nullptr && dyn_cast<equivalence::ClassOp>(*defOp)) {

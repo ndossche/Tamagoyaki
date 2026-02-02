@@ -8,7 +8,7 @@
 #include "mlir/IR/OperationSupport.h"
 #include "llvm/ADT/DenseMapInfo.h"
 
-namespace mlir::tamatch {
+namespace mlir::ematch {
 
 struct SimpleOperationInfo : public llvm::DenseMapInfo<Operation *> {
   static unsigned getHashValue(const Operation *opC) {
@@ -32,6 +32,6 @@ struct SimpleOperationInfo : public llvm::DenseMapInfo<Operation *> {
   }
 };
 
-} // namespace mlir::tamatch
+} // namespace mlir::ematch
 
 #endif // MLIR_SIMPLE_OPERATION_INFO_H

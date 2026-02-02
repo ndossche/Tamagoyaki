@@ -17,7 +17,7 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 
-namespace mlir::tamatch {
+namespace mlir::ematch {
 
 /// Helper function to get all values from a ClassOp
 SmallVector<mlir::Value> getClassVals(mlir::PatternRewriter &rewriter,
@@ -76,6 +76,6 @@ private:
   llvm::EquivalenceClasses<equivalence::ClassOp> unionFind;
 };
 
-} // namespace mlir::tamatch
+} // namespace mlir::ematch
 
 #endif // EQUIVALENCE_SRC_UTILS_CLASSOPUNIONFIND_H

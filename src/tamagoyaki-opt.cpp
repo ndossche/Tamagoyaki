@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "EmatchDialect.h"
 #include "EquivalenceDialect.h"
-#include "TamatchDialect.h"
 
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllPasses.h"
@@ -15,19 +15,19 @@
 
 using namespace mlir;
 using namespace mlir::equivalence;
-using namespace mlir::tamatch;
+using namespace mlir::ematch;
 
-namespace mlir::tamatch {
+namespace mlir::ematch {
 void registerPasses();
 }
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
   mlir::equivalence::registerPasses();
-  mlir::tamatch::registerPasses();
+  mlir::ematch::registerPasses();
   mlir::DialectRegistry registry;
   registry.insert<mlir::equivalence::EquivalenceDialect,
-                  mlir::tamatch::TamatchDialect>();
+                  mlir::ematch::EmatchDialect>();
   registerAllDialects(registry);
 
   return mlir::asMainReturnCode(

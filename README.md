@@ -40,9 +40,9 @@ The dialect also provides the `-tama-insert-egraph` pass, which transforms a mod
 - Inserting a `tama.egraph` operation in every single-block `func.func`
 - Wrapping all values and operands in `tama.eq` operations
 
-### `tamatch` Dialect
+### `ematch` Dialect
 
-The `tamatch` dialect extends the `pdl_interp` dialect to support e-matching for equality saturation. (Details are still in development.)
+The `ematch` dialect extends the `pdl_interp` dialect to support e-matching for equality saturation. (Details are still in development.)
 
 ## Building
 

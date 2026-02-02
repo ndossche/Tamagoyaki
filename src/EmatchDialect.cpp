@@ -1,4 +1,4 @@
-//===- TamatchDialect.cpp - Tamatch dialect -----*- C++ -*-===//
+//===- EmatchDialect.cpp - Ematch dialect -----*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TamatchDialect.h"
+#include "EmatchDialect.h"
 
 #include "EquivalenceDialect.h"
 #include "Utils/ClassOpUnionFind.h"
@@ -37,52 +37,52 @@
 #include <chrono>
 #include <utility>
 
-#define DEBUG_TYPE "tamatch"
+#define DEBUG_TYPE "ematch"
 
 using namespace mlir;
-using namespace mlir::tamatch;
+using namespace mlir::ematch;
 
-#include "TamatchDialect.cpp.inc"
+#include "EmatchDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
-// Tamatch dialect.
+// Ematch dialect.
 //===----------------------------------------------------------------------===//
 
-void TamatchDialect::initialize() {
+void EmatchDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "TamatchOps.cpp.inc"
+#include "EmatchOps.cpp.inc"
 
       >();
 }
 
-Type TamatchDialect::parseType(DialectAsmParser &parser) const {
+Type EmatchDialect::parseType(DialectAsmParser &parser) const {
   StringRef typeName;
   if (parser.parseKeyword(&typeName))
     return Type();
   return {};
 }
 
-void TamatchDialect::printType(Type type, DialectAsmPrinter &os) const {
+void EmatchDialect::printType(Type type, DialectAsmPrinter &os) const {
   os << "unknown";
 }
 
 //===----------------------------------------------------------------------===//
-// Tamatch ops
+// Ematch ops
 //===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
-#include "TamatchOps.cpp.inc"
+#include "EmatchOps.cpp.inc"
 
 //===----------------------------------------------------------------------===//
-// Tamatch Passes
+// Ematch Passes
 //===----------------------------------------------------------------------===//
 
-namespace mlir::tamatch {
+namespace mlir::ematch {
 
-#define GEN_PASS_DEF_TAMATCHSATURATEPASS
-#define GEN_PASS_DEF_TAMATCHSATURATEBENCHMARKPASS
-#include "TamatchPasses.h.inc"
+#define GEN_PASS_DEF_EMATCHSATURATEPASS
+#define GEN_PASS_DEF_EMATCHSATURATEBENCHMARKPASS
+#include "EmatchPasses.h.inc"
 
 namespace {
 
@@ -221,14 +221,14 @@ static bool runSaturation(MLIRContext *ctx, ModuleOp patternModule,
   return true;
 }
 
-struct TamatchSaturatePass
-    : public impl::TamatchSaturatePassBase<TamatchSaturatePass> {
-  using impl::TamatchSaturatePassBase<
-      TamatchSaturatePass>::TamatchSaturatePassBase;
+struct EmatchSaturatePass
+    : public impl::EmatchSaturatePassBase<EmatchSaturatePass> {
+  using impl::EmatchSaturatePassBase<
+      EmatchSaturatePass>::EmatchSaturatePassBase;
 
-  TamatchSaturatePass() = default;
-  TamatchSaturatePass(const TamatchSaturatePass &pass)
-      : TamatchSaturatePassBase(pass) {}
+  EmatchSaturatePass() = default;
+  EmatchSaturatePass(const EmatchSaturatePass &pass)
+      : EmatchSaturatePassBase(pass) {}
 
   Option<int> maxIters{
       *this, "max-iters",
@@ -259,19 +259,19 @@ struct TamatchSaturatePass
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
         endTime - startTime);
     LLVM_DEBUG(llvm::dbgs()
-               << "TamatchSaturatePass took " << duration.count() << " µs\n");
+               << "EmatchSaturatePass took " << duration.count() << " µs\n");
   }
 };
 
-struct TamatchSaturateBenchmarkPass
-    : public impl::TamatchSaturateBenchmarkPassBase<
-          TamatchSaturateBenchmarkPass> {
-  using impl::TamatchSaturateBenchmarkPassBase<
-      TamatchSaturateBenchmarkPass>::TamatchSaturateBenchmarkPassBase;
+struct EmatchSaturateBenchmarkPass
+    : public impl::EmatchSaturateBenchmarkPassBase<
+          EmatchSaturateBenchmarkPass> {
+  using impl::EmatchSaturateBenchmarkPassBase<
+      EmatchSaturateBenchmarkPass>::EmatchSaturateBenchmarkPassBase;
 
-  TamatchSaturateBenchmarkPass() = default;
-  TamatchSaturateBenchmarkPass(const TamatchSaturateBenchmarkPass &pass)
-      : TamatchSaturateBenchmarkPassBase(pass) {}
+  EmatchSaturateBenchmarkPass() = default;
+  EmatchSaturateBenchmarkPass(const EmatchSaturateBenchmarkPass &pass)
+      : EmatchSaturateBenchmarkPassBase(pass) {}
 
   Option<int> numRuns{
       *this, "num-runs",
@@ -324,19 +324,19 @@ struct TamatchSaturateBenchmarkPass
     auto totalDuration = std::chrono::duration_cast<std::chrono::microseconds>(
         totalEndTime - totalStartTime);
     LLVM_DEBUG(llvm::dbgs()
-               << "TamatchSaturateBenchmarkPass total: "
-               << totalDuration.count() << " µs for " << numRuns << " runs\n");
+               << "EmatchSaturateBenchmarkPass total: " << totalDuration.count()
+               << " µs for " << numRuns << " runs\n");
   }
 };
 } // namespace
-} // namespace mlir::tamatch
+} // namespace mlir::ematch
 
 #define GEN_PASS_REGISTRATION
-#include "TamatchPasses.h.inc"
+#include "EmatchPasses.h.inc"
 
-namespace mlir::tamatch {
+namespace mlir::ematch {
 void registerPasses() {
-  registerTamatchSaturatePass();
-  registerTamatchSaturateBenchmarkPass();
+  registerEmatchSaturatePass();
+  registerEmatchSaturateBenchmarkPass();
 }
-} // namespace mlir::tamatch
+} // namespace mlir::ematch

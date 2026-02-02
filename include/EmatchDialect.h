@@ -1,4 +1,4 @@
-//===- TamatchDialect.h - Tamatch dialect -----------------*- C++ -*-===//
+//===- EmatchDialect.h - Ematch dialect -----------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TAMATCH_TAMATCHDIALECT_H
-#define TAMATCH_TAMATCHDIALECT_H
+#ifndef EMATCH_EMATCHDIALECT_H
+#define EMATCH_EMATCHDIALECT_H
 
 // IWYU pragma: begin_keep
 #include "mlir/IR/BuiltinTypes.h"
@@ -19,9 +19,9 @@
 #include <memory>
 // IWYU pragma: end_keep
 
-#include "TamatchDialect.h.inc"
+#include "EmatchDialect.h.inc"
 
 #define GET_OP_CLASSES
-#include "TamatchOps.h.inc"
+#include "EmatchOps.h.inc"
 
-#endif // TAMATCH_TAMATCHDIALECT_H
+#endif // EMATCH_EMATCHDIALECT_H
