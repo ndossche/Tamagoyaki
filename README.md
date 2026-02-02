@@ -11,38 +11,50 @@ It builds on the [`pdl` dialect](https://mlir.llvm.org/docs/Dialects/PDLOps/) fo
 
 ## Dialects
 
-### `tama` Dialect
+### `equivalence` Dialect
 
-The `tama` dialect provides three core operations for representing and manipulating e-graphs:
+The `equivalence` dialect provides core operations for representing and manipulating e-graphs:
 
-- **`tama.egraph`**: Defines an e-graph region—a single-block region containing unordered operations and equivalence classes
-- **`tama.eq`**: Represents an equivalence class containing a set of equivalent values
-- **`tama.yield`**: Terminator operation for `tama.egraph` regions
+- **`equivalence.graph`**: Defines a graph region—a single-block region containing unordered operations and equivalence classes
+- **`equivalence.class`**: Represents an equivalence class containing a set of equivalent values
+- **`equivalence.yield`**: Terminator operation for `equivalence.graph` regions
 
 Example:
 
 ```mlir
 func.func @main(%a: i32) -> (i32, i32) {
-  %res:2 = tama.egraph %a : i32 -> i32, i32 {
+  %res = equivalence.graph %a : i32 -> i32 {
   ^bb0(%b: i32):
-    %b_eclass = tama.eq %b : i32
     %one = arith.constant 1 : i32
-    %one_eclass = tama.eq %one : i32
-    %add = arith.addi %b_eclass, %one_eclass : i32
-    %add_eclass = tama.eq %add : i32
-    tama.yield %one_eclass, %add_eclass : i32, i32
+    %two = arith.constant 2 : i32
+    
+    %mul = arith.muli %b, %two
+    %shift = arith.shli %b, %one : i32
+    // `b << 1` is equivalent to `b * 2`
+    %result = equivalence.class %mul, %shift : i32
+    
+    equivalence.yield %result : i32
   }
-  return %res#0, %res#1 : i32, i32
+  return %res: i32
 }
 ```
 
-The dialect also provides the `-tama-insert-egraph` pass, which transforms a module by:
-- Inserting a `tama.egraph` operation in every single-block `func.func`
-- Wrapping all values and operands in `tama.eq` operations
-
 ### `ematch` Dialect
 
-The `ematch` dialect extends the `pdl_interp` dialect to support e-matching for equality saturation. (Details are still in development.)
+The `ematch` dialect extends the `pdl_interp` dialect to support e-matching for equality saturation. It provides pattern matching and rewriting capabilities built on the PDL (Pattern Description Language) infrastructure.
+
+#### Passes
+
+- **`-ematch-saturate`**: Applies pattern rewriting to the program using equality saturation. This pass takes PDL-defined patterns and repeatedly applies matching and rewriting rules until a fixed point is reached (saturation), ensuring all possible equivalent expressions are explored.
+
+- **`-ematch-saturate-benchmark`**: Runs the equality saturation process N times for benchmarking and profiling. Each iteration clones the input IR to ensure fresh state, making it useful for performance analysis and optimization validation.
+
+## Herbie-MLIR
+
+The `herbie-mlir` subproject extends Tamagoyaki with floating-point expression optimization inspired by [Herbie](https://herbie.uwplse.org/). The goal is to use equality saturation with the `ematch` dialect to explore equivalent floating-point expressions and select those with improved numerical accuracy or performance characteristics.
+
+The subproject includes the `herbie-mlir-opt` tool, which combines the `equivalence` and `ematch` dialects with specialized patterns for floating-point arithmetic transformations. This tool builds on the MLIR infrastructure and the Rival type inference framework to validate transformations.
+
 
 ## Building
 
