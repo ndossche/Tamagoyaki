@@ -33,8 +33,10 @@ def Equivalence_Dialect : Dialect {
     let cppNamespace = "::mlir::equivalence";
 
     let useDefaultTypePrinterParser = 1;
+    let useDefaultAttributePrinterParser = 1;
     let extraClassDeclaration = [{
         void registerTypes();
+        void registerAttributes();
     }];
 }
 
@@ -175,6 +177,41 @@ def EquivalenceSwitchBarFoo: Pass<"equivalence-switch-bar-foo", "::mlir::ModuleO
     }
     ```
   }];
+}
+
+def EquivalenceSelectGreedy: Pass<"equivalence-select-greedy", "::mlir::ModuleOp"> {
+  let summary = "Performs greedy cost-based extraction for equivalence classes.";
+  let description = [{
+    Implements greedy cost-based extraction for equivalence classes using
+    bottom-up fixed-point iteration. For each e-class, finds the minimum cost
+    node and sets the min_cost_index attribute on ClassOp operations.
+  }];
+  let options = [
+    Option<"costFile", "cost-file", "std::string", "",
+           "Path to JSON file containing operation costs">,
+    Option<"defaultCost", "default-cost", "int", "-1",
+           "Default cost for operations not in cost file (-1 means none)">
+  ];
+  let dependentDialects = ["::mlir::equivalence::EquivalenceDialect"];
+}
+
+//===----------------------------------------------------------------------===//
+// Equivalence Attributes
+//===----------------------------------------------------------------------===//
+
+class Equivalence_Attr<string name, string attrMnemonic, list<Trait> traits = []>
+    : AttrDef<Equivalence_Dialect, name, traits> {
+  let mnemonic = attrMnemonic;
+}
+
+def Equivalence_CostAttr : Equivalence_Attr<"Cost", "cost"> {
+  let summary = "An attribute representing the cost of an operation";
+  let description = [{
+    This attribute stores the cost of an operation for use in cost-based
+    extraction algorithms. A value of -1 indicates no cost is available.
+  }];
+  let parameters = (ins "int64_t":$value);
+  let assemblyFormat = "`<` $value `>`";
 }
 
 class Equivalence_Type<string name, string typeMnemonic, list<Trait> traits = []>
