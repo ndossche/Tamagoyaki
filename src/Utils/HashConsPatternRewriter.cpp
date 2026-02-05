@@ -32,6 +32,7 @@ void HashConsPatternRewriter::startOpModification(Operation *op) {
   if (dyn_cast<equivalence::ClassOp>(*op))
     return;
   (void)erase(op);
+  PatternRewriter::startOpModification(op);
 }
 
 void HashConsPatternRewriter::cancelOpModification(Operation *op) {
@@ -40,6 +41,7 @@ void HashConsPatternRewriter::cancelOpModification(Operation *op) {
   if (dyn_cast<equivalence::ClassOp>(*op))
     return;
   (void)insert(op);
+  PatternRewriter::cancelOpModification(op);
 }
 
 void HashConsPatternRewriter::finalizeOpModification(Operation *op) {
