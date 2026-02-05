@@ -1,7 +1,7 @@
 // RUN: tamagoyaki-opt -equivalence-insert-graph %s | FileCheck %s
 
 // CHECK:      func.func @main(%arg0: i32) -> (i32, i32) {
-// CHECK-NEXT:   %0:2 = equivalence.graph %arg0 : i32 -> i32, i32 {
+// CHECK-NEXT:   %0:2 = equivalence.graph %arg0 : (i32) -> (i32, i32) {
 // CHECK-NEXT:   ^bb0(%arg1: i32):
 // CHECK-NEXT:     %1 = equivalence.class %arg1 : i32
 // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32

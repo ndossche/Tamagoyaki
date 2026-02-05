@@ -91,7 +91,7 @@ def Equivalence_YieldOp : Equivalence_Op<"yield", [
     let arguments = (ins Variadic<AnyType>:$values);
     
     let assemblyFormat = [{
-        $values `:` type($values) attr-dict
+        attr-dict ($values^ `:` type($values))?
     }];
     
     // This allows SingleBlockImplicitTerminator to build 'equivalence.yield'
@@ -122,7 +122,7 @@ def Equivalence_GraphOp : Equivalence_Op<"graph", [
     let regions = (region SizedRegion<1>:$body);
 
     let assemblyFormat = [{
-        ($inputs^ `:` type($inputs))? `->` type($outputs) $body attr-dict
+        $inputs attr-dict `:` functional-type($inputs, results) $body
     }];
 }
 
@@ -143,7 +143,7 @@ def Equivalence_ClassOp : Equivalence_Op<"class", [
     let results = (outs AnyType:$result);
 
     let assemblyFormat = [{
-        $inputs attr-dict `:` type($result)
+        $inputs (` ` `(` `min_cost_index` `=` $min_cost_index^ `)` )? attr-dict `:` type($result)
     }];
 
     // Verify the following:

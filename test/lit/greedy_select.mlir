@@ -6,11 +6,11 @@
 // CHECK-NEXT: %{{.*}} = arith.constant {equivalence.cost = #equivalence.cost<1>} 1 : i32
 // CHECK-NEXT: %{{.*}} = arith.shli %{{.*}}, %{{.*}} {equivalence.cost = #equivalence.cost<2>} : i32
 // CHECK-NEXT: %{{.*}} = arith.muli %{{.*}}, %{{.*}} {equivalence.cost = #equivalence.cost<1>} : i32
-// CHECK-NEXT: %{{.*}} = equivalence.class %{{.*}}, %{{.*}} {min_cost_index = 1 : i64} : i32
+// CHECK-NEXT: %{{.*}} = equivalence.class %{{.*}}, %{{.*}} (min_cost_index = 1) : i32
 // CHECK-NEXT: equivalence.yield %{{.*}} : i32
 
 func.func @main(%arg0: i32) -> i32 {
-  %0 = equivalence.graph %arg0 : i32 -> i32 {
+  %0 = equivalence.graph %arg0 : (i32) -> i32 {
   ^bb0(%arg1: i32):
     %c2_i32 = arith.constant 2 : i32
     %c1_i32 = arith.constant 1 : i32

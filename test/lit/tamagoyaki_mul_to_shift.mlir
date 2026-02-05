@@ -98,7 +98,7 @@ module @patterns {
 module @ir {
 
     // CHECK:      func.func @graph_with_eqs(%arg0: i32) -> i32 {
-    // CHECK-NEXT:   %0 = equivalence.graph %arg0 : i32 -> i32 {
+    // CHECK-NEXT:   %0 = equivalence.graph %arg0 : (i32) -> i32 {
     // CHECK-NEXT:   ^bb0(%arg1: i32):
     // CHECK-NEXT:     %1 = equivalence.class %arg1 : i32
     // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
@@ -114,7 +114,7 @@ module @ir {
     // CHECK-NEXT: }
 
     func.func @graph_with_eqs(%arg0: i32) -> i32 {
-        %0 = equivalence.graph %arg0 : i32 -> i32 {
+        %0 = equivalence.graph %arg0 : (i32) -> i32 {
             ^bb0(%arg1: i32):
             %1 = equivalence.class %arg1 : i32
             %c2_i32 = arith.constant 2 : i32
@@ -129,7 +129,7 @@ module @ir {
     
     
     // CHECK:      func.func @graph_without_eqs(%arg0: i32) -> i32 {
-    // CHECK-NEXT:   %0 = equivalence.graph %arg0 : i32 -> i32 {
+    // CHECK-NEXT:   %0 = equivalence.graph %arg0 : (i32) -> i32 {
     // CHECK-NEXT:   ^bb0(%arg1: i32):
     // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
     // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
@@ -141,7 +141,7 @@ module @ir {
     // CHECK-NEXT:   return %0 : i32
     // CHECK-NEXT: }
     func.func @graph_without_eqs(%arg0: i32) -> i32 {
-        %0 = equivalence.graph %arg0 : i32 -> i32 {
+        %0 = equivalence.graph %arg0 : (i32) -> i32 {
             ^bb0(%arg1: i32):
             %c2_i32 = arith.constant 2 : i32
             %3 = arith.muli %arg1, %c2_i32 : i32
