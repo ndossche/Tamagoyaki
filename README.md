@@ -60,6 +60,10 @@ The subproject includes the `herbie-mlir-opt` tool, which combines the `equivale
 
 ### Prerequisites
 
+> [!WARNING]  
+> The Python wheel-based build instructions currently don't work as we made [changes to upstream](https://github.com/llvm/llvm-project/pull/173161) that have not yet made their way to the Python wheels. Alternatively, it is possible to build (a recent version of) MLIR and provide that instead when invoking cmake.
+
+
 This project uses [mlir-wheels](https://makslevental.github.io/wheels) for MLIR distribution. Install dependencies with:
 
 ```shell
