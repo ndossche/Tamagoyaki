@@ -1,14 +1,17 @@
 #ifndef HERBIE_MLIR_INTERVAL_SEARCH_H
 #define HERBIE_MLIR_INTERVAL_SEARCH_H
 
-#include "mlir/IR/Types.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "rival.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mpfr.h>
 #include <optional>
+#include <random>
+#include <utility>
 #include <vector>
 
 namespace herbie {
@@ -235,6 +238,65 @@ public:
 private:
   std::vector<const mpfr_t *> ptrs_;
 };
+
+// ============================================================================
+// Function-Level Interval Search
+// ============================================================================
+
+/// Configuration object for storing rival and search options
+struct IntervalSearchConfig {
+  unsigned maxSearchDepth = 128;
+  unsigned maxRegions = 131072;
+  unsigned analysisPrecision = 128;
+  unsigned maxRivalPrecision = 2000;
+  unsigned maxRivalIterations = 5;
+};
+
+/// Result of running interval search on a function.
+struct FunctionIntervalResult {
+  SearchResult searchResult;
+  std::vector<unsigned> floatBitWidths;
+  bool success = false;
+};
+
+/// Run interval search on a function that implements RivalCompileableInterface.
+/// Returns the search result containing sampleable regions and statistics.
+FunctionIntervalResult
+runIntervalSearchOnFunction(mlir::func::FuncOp funcOp,
+                            const IntervalSearchConfig &config);
+
+// ============================================================================
+// Sampling
+// ============================================================================
+
+/// Result of sampling and evaluating points.
+struct SamplingResult {
+  std::vector<std::vector<double>> points;
+  std::vector<std::vector<double>> results;
+  unsigned sampled = 0;
+  unsigned skipped = 0;
+};
+
+/// Build cumulative weight array from sampleable regions.
+llvm::SmallVector<double>
+buildCumulativeWeights(llvm::ArrayRef<RegionWithHints> regions,
+                       llvm::ArrayRef<unsigned> floatBitWidths);
+
+/// Sample a single random point from weighted sampleable regions.
+/// Returns the sampled point and the index of the chosen region.
+std::pair<std::vector<double>, size_t>
+samplePoint(llvm::ArrayRef<RegionWithHints> regions,
+            llvm::ArrayRef<double> cumulativeWeights,
+            llvm::ArrayRef<unsigned> floatBitWidths, std::mt19937_64 &rng);
+
+/// Sample numSamples points from the search result's sampleable regions,
+/// evaluate them with the given Rival machine, and return the results.
+SamplingResult
+sampleAndEvaluate(RivalMachine *machine, const SearchResult &searchResult,
+                  llvm::ArrayRef<unsigned> floatBitWidths, size_t numRoots,
+                  unsigned numSamples, unsigned evalMaxIterations,
+                  unsigned evalMaxPrecision, unsigned analysisPrecision,
+                  uint64_t seed = 42);
 
 } // namespace herbie
 

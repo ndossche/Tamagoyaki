@@ -1,7 +1,11 @@
 #include "IntervalSearch.h"
+#include "HerbieMLIROpInterfaces.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/BuiltinTypeInterfaces.h"
+#include "mlir/IR/Types.h"
+#include "mlir/Support/LLVM.h"
 #include "rival.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -9,6 +13,8 @@
 #include <cstring>
 #include <limits>
 #include <optional>
+#include <random>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -439,4 +445,263 @@ SearchResult herbie::findIntervals(RivalMachine *machine,
   }
 
   return result;
+}
+
+// ============================================================================
+// runIntervalSearchOnFunction Implementation
+// ============================================================================
+
+FunctionIntervalResult
+herbie::runIntervalSearchOnFunction(mlir::func::FuncOp funcOp,
+                                    const IntervalSearchConfig &config) {
+  FunctionIntervalResult result;
+  result.success = false;
+
+  auto iface = mlir::dyn_cast<RivalCompileableInterface>(funcOp.getOperation());
+  if (!iface) {
+    funcOp.emitWarning()
+        << "Function does not implement RivalCompileableInterface";
+    return result;
+  }
+
+  RivalExprArena *arena = rival_expr_arena_new();
+  if (!arena) {
+    funcOp.emitError() << "Failed to create Rival expression arena";
+    return result;
+  }
+
+  auto exprs = iface.compile(arena, {});
+  if (exprs.size() != 1) {
+    funcOp->emitError()
+        << "Currently, only functions with a single result are supported.";
+    return result;
+  }
+  uint32_t exprRoot = exprs[0];
+
+  size_t numArgs = funcOp.getNumArguments();
+  std::vector<std::string> varNames;
+  std::vector<const char *> varNamePtrs;
+
+  varNames.reserve(numArgs);
+  result.floatBitWidths.reserve(numArgs);
+
+  for (size_t i = 0; i < numArgs; ++i) {
+    varNames.push_back("arg" + std::to_string(i));
+
+    mlir::Type argType = funcOp.getArgumentTypes()[i];
+    if (auto floatType = mlir::dyn_cast<mlir::FloatType>(argType)) {
+      result.floatBitWidths.push_back(floatType.getWidth());
+    } else {
+      funcOp.emitError() << "Argument " << i << " is not a floating-point type";
+      rival_expr_arena_free(arena);
+      return result;
+    }
+  }
+
+  varNamePtrs.reserve(varNames.size());
+  for (auto &name : varNames) {
+    varNamePtrs.push_back(name.c_str());
+  }
+
+  uint32_t roots[] = {exprRoot};
+
+  RivalDiscretization *disc = nullptr;
+  if (funcOp.getNumResults() > 0) {
+    mlir::Type resultType = funcOp.getResultTypes()[0];
+    if (auto floatType = mlir::dyn_cast<mlir::FloatType>(resultType)) {
+      if (floatType.getWidth() == 32)
+        disc = rival_disc_f32(24);
+      else
+        disc = rival_disc_f64(53);
+    }
+  }
+  if (!disc)
+    disc = rival_disc_f64(53);
+
+  RivalMachine *machine =
+      rival_machine_new(arena, roots, 1, varNamePtrs.data(), numArgs, disc,
+                        config.maxRivalPrecision, 1000);
+
+  if (!machine) {
+    funcOp.emitError() << "Failed to create Rival machine";
+    rival_disc_free(disc);
+    rival_expr_arena_free(arena);
+    return result;
+  }
+
+  IntervalSearchOptions options;
+  options.maxSearchDepth = config.maxSearchDepth;
+  options.maxRegions = config.maxRegions;
+  options.analysisPrecision = config.analysisPrecision;
+  options.maxRivalPrecision = config.maxRivalPrecision;
+  options.maxRivalIterations = config.maxRivalIterations;
+  options.emitStatistics = false;
+
+  std::vector<Hyperrect> initialRects;
+  initialRects.push_back(
+      createFullDomainRect(result.floatBitWidths, config.analysisPrecision));
+
+  result.searchResult =
+      findIntervals(machine, initialRects, result.floatBitWidths, options);
+  result.success = true;
+
+  rival_machine_free(machine);
+  rival_disc_free(disc);
+  rival_expr_arena_free(arena);
+
+  return result;
+}
+
+// ============================================================================
+// Sampling
+// ============================================================================
+
+namespace {
+
+size_t weightedBinarySearch(llvm::ArrayRef<double> cumulativeWeights,
+                            double target) {
+  size_t left = 0;
+  size_t right = cumulativeWeights.size() - 1;
+  while (left < right) {
+    size_t mid = left + (right - left) / 2;
+    if (cumulativeWeights[mid] <= target)
+      left = mid + 1;
+    else
+      right = mid;
+  }
+  return left;
+}
+
+} // namespace
+
+llvm::SmallVector<double>
+herbie::buildCumulativeWeights(llvm::ArrayRef<RegionWithHints> regions,
+                               llvm::ArrayRef<unsigned> floatBitWidths) {
+  llvm::SmallVector<double> cumWeights;
+  cumWeights.reserve(regions.size());
+  double running = 0.0;
+  for (const auto &region : regions) {
+    running += hyperrectWeight(region.rect, floatBitWidths);
+    cumWeights.push_back(running);
+  }
+  return cumWeights;
+}
+
+std::pair<std::vector<double>, size_t>
+herbie::samplePoint(llvm::ArrayRef<RegionWithHints> regions,
+                    llvm::ArrayRef<double> cumulativeWeights,
+                    llvm::ArrayRef<unsigned> floatBitWidths,
+                    std::mt19937_64 &rng) {
+  double totalW = cumulativeWeights.back();
+  std::uniform_real_distribution<double> weightDist(0.0, totalW);
+  double pick = weightDist(rng);
+
+  size_t idx = weightedBinarySearch(cumulativeWeights, pick);
+  idx = std::min(idx, regions.size() - 1);
+
+  const Hyperrect &rect = regions[idx].rect;
+  size_t numVars = floatBitWidths.size();
+  std::vector<double> point(numVars);
+
+  for (size_t d = 0; d < numVars; ++d) {
+    double lo = rect[d].loAsDouble();
+    double hi = rect[d].hiAsDouble();
+
+    if (floatBitWidths[d] == 32) {
+      uint32_t loOrd = floatToOrdinal(static_cast<float>(lo));
+      uint32_t hiOrd = floatToOrdinal(static_cast<float>(hi));
+      std::uniform_int_distribution<uint32_t> dist(loOrd, hiOrd);
+      point[d] = static_cast<double>(ordinalToFloat32(dist(rng)));
+    } else {
+      uint64_t loOrd = floatToOrdinal(lo);
+      uint64_t hiOrd = floatToOrdinal(hi);
+      std::uniform_int_distribution<uint64_t> dist(loOrd, hiOrd);
+      point[d] = ordinalToFloat64(dist(rng));
+    }
+  }
+
+  return {point, idx};
+}
+
+SamplingResult herbie::sampleAndEvaluate(
+    RivalMachine *machine, const SearchResult &searchResult,
+    llvm::ArrayRef<unsigned> floatBitWidths, size_t numRoots,
+    unsigned numSamples, unsigned evalMaxIterations, unsigned evalMaxPrecision,
+    unsigned analysisPrecision, uint64_t seed) {
+  SamplingResult sr;
+
+  auto &regions = searchResult.sampleableRegions;
+  if (regions.empty())
+    return sr;
+
+  auto cumWeights = buildCumulativeWeights(regions, floatBitWidths);
+  std::mt19937_64 rng(seed);
+
+  size_t numVars = floatBitWidths.size();
+
+  sr.points.resize(numSamples);
+  sr.results.resize(numSamples, std::vector<double>(numRoots));
+
+  auto *argMpfr = new mpfr_t[numVars];
+  std::vector<const mpfr_t *> argPtrs(numVars);
+  for (size_t i = 0; i < numVars; ++i) {
+    mpfr_init2(argMpfr[i], analysisPrecision);
+    argPtrs[i] = &argMpfr[i];
+  }
+
+  auto *outMpfr = new mpfr_t[numRoots];
+  std::vector<mpfr_t *> outPtrs(numRoots);
+  for (size_t i = 0; i < numRoots; ++i) {
+    mpfr_init2(outMpfr[i], analysisPrecision);
+    outPtrs[i] = &outMpfr[i];
+  }
+
+  constexpr unsigned kMaxSkipMultiplier = 8;
+  unsigned maxSkipped = kMaxSkipMultiplier * numSamples;
+
+  while (sr.sampled < numSamples && sr.skipped < maxSkipped) {
+    auto [pt, regionIdx] =
+        samplePoint(regions, cumWeights, floatBitWidths, rng);
+
+    for (size_t d = 0; d < numVars; ++d)
+      mpfr_set_d(argMpfr[d], pt[d], MPFR_RNDN);
+
+    RivalError err =
+        rival_apply(machine, argPtrs.data(), numVars, outPtrs.data(), numRoots,
+                    nullptr, evalMaxIterations, evalMaxPrecision);
+
+    if (err != RIVAL_ERROR_OK) {
+      ++sr.skipped;
+      continue;
+    }
+
+    bool hasInvalid = false;
+    for (size_t j = 0; j < numRoots; ++j) {
+      if (!mpfr_number_p(outMpfr[j])) {
+        hasInvalid = true;
+        break;
+      }
+    }
+    if (hasInvalid) {
+      ++sr.skipped;
+      continue;
+    }
+
+    sr.points[sr.sampled] = std::move(pt);
+    for (size_t j = 0; j < numRoots; ++j)
+      sr.results[sr.sampled][j] = mpfr_get_d(outMpfr[j], MPFR_RNDN);
+    ++sr.sampled;
+  }
+
+  sr.points.resize(sr.sampled);
+  sr.results.resize(sr.sampled);
+
+  for (size_t i = 0; i < numVars; ++i)
+    mpfr_clear(argMpfr[i]);
+  delete[] argMpfr;
+  for (size_t i = 0; i < numRoots; ++i)
+    mpfr_clear(outMpfr[i]);
+  delete[] outMpfr;
+
+  return sr;
 }

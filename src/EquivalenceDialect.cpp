@@ -8,13 +8,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "EquivalenceDialect.h"
+#include "EquivalenceUtils.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/RegionKindInterface.h"
@@ -25,8 +25,9 @@
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
-#include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include <cstddef>
 #include <cstdint>
@@ -151,74 +152,11 @@ public:
   void runOnOperation() final {
     ModuleOp module = getOperation();
 
-    // Collect all functions first, then process them
-    SmallVector<func::FuncOp> functions;
-    for (Operation &op : module.getBody()->getOperations()) {
-      if (auto funcOp = dyn_cast<func::FuncOp>(op)) {
-        functions.push_back(funcOp);
-      }
-    }
-
-    // Process each function
-    for (func::FuncOp funcOp : functions) {
-      if (failed(transformFunction(funcOp, true))) {
+    module->walk([&](mlir::func::FuncOp funcOp) {
+      if (failed(insertGraphInFunction(funcOp, false))) {
         signalPassFailure();
       }
-    }
-  }
-
-private:
-  LogicalResult transformFunction(func::FuncOp funcOp,
-                                  bool insertSingleElementEqs) {
-    // Only transform single-block functions
-    Region &funcBody = funcOp.getFunctionBody();
-
-    if (!funcBody.hasOneBlock()) {
-      return failure();
-    }
-
-    Block &entryBlock = funcBody.front();
-    auto returnOp = dyn_cast<func::ReturnOp>(*entryBlock.getTerminator());
-
-    if (!returnOp) {
-      return funcOp.emitOpError("function must have a return operation");
-    }
-
-    Location loc = funcOp.getLoc();
-
-    // Create the graphOp at the start of the block
-    FunctionType funcType = funcOp.getFunctionType();
-    OpBuilder builder(funcOp->getContext());
-    auto graphOp = GraphOp::create(builder, loc, funcType.getResults(), {});
-
-    // Put the single-block function body in the graphOp
-    Region &graphBody = graphOp.getBody();
-    graphBody.takeBody(funcBody);
-
-    // Rewrite the func.return to a tama.yield
-    builder.setInsertionPoint(returnOp);
-    YieldOp::create(builder, returnOp.getLoc(), returnOp.getOperands());
-    returnOp.erase();
-
-    if (insertSingleElementEqs) {
-      wrapValuesInClassOps(graphBody, builder);
-    }
-
-    // Create a new function body
-    Block *newEntryBlock = builder.createBlock(
-        &funcBody, funcBody.end(), funcType.getInputs(),
-        SmallVector<Location>(funcType.getNumInputs(), loc));
-
-    graphOp->setOperands(newEntryBlock->getArguments());
-
-    // Insert the graphOp into the new block
-    builder.setInsertionPointToStart(newEntryBlock);
-    builder.insert(graphOp);
-
-    // Create a return that returns the graphOp's results
-    func::ReturnOp::create(builder, loc, graphOp->getResults());
-
-    return success();
+    });
   }
 };
 
@@ -260,14 +198,6 @@ public:
   }
 };
 
-/// Get the base cost of a node from its cost attribute or default.
-int64_t getNodeBaseCost(Operation *op, int64_t defaultCost) {
-  if (auto attr = op->getAttrOfType<CostAttr>("equivalence.cost")) {
-    return attr.getValue();
-  }
-  return defaultCost;
-}
-
 class EquivalenceSelectGreedy
     : public impl::EquivalenceSelectGreedyBase<EquivalenceSelectGreedy> {
 public:
@@ -277,118 +207,11 @@ public:
     ModuleOp module = getOperation();
     int64_t defaultCostVal = this->defaultCost;
 
-    // Process each GraphOp separately
-    module.walk([&](GraphOp graphOp) {
-      // Collect all ClassOps in this graph
-      SmallVector<ClassOp> classOps;
-      graphOp.walk([&](ClassOp classOp) { classOps.push_back(classOp); });
-
-      // Initialize base costs as attributes on operations within the graph
-      // Only set cost if not already present (preserve manually specified
-      // costs)
-      graphOp.walk([&](Operation *op) {
-        if (!isa<ClassOp>(op) && !isa<GraphOp>(op) && !isa<YieldOp>(op)) {
-          if (!op->hasAttr("equivalence.cost")) {
-            int64_t cost = (defaultCostVal < 0) ? -1 : defaultCostVal;
-            op->setAttr("equivalence.cost",
-                        CostAttr::get(op->getContext(), cost));
-          }
-        }
-      });
-
-      // Fixed-point iteration: repeatedly scan ClassOps until convergence
-      bool changed = true;
-      int maxIterations = 100;
-      int iteration = 0;
-
-      while (changed && iteration < maxIterations) {
-        changed = false;
-        iteration++;
-
-        // Track e-class minimum costs in this iteration
-        DenseMap<Value, int64_t> eclassCosts;
-
-        // First pass: collect costs from ClassOps
-        for (ClassOp classOp : classOps) {
-          Value result = classOp.getResult();
-          int64_t minCost = std::numeric_limits<int64_t>::max();
-          int minIndex = -1;
-
-          // Evaluate cost of each operand
-          for (size_t i = 0; i < classOp.getInputs().size(); ++i) {
-            Value operand = classOp.getInputs()[i];
-            Operation *operandDef = operand.getDefiningOp();
-
-            int64_t totalCost = 0;
-            if (!operandDef) {
-              // Block arguments are free
-              totalCost = 0;
-            } else if (auto classDefOp = dyn_cast<ClassOp>(operandDef)) {
-              // Cost is from e-class map
-              auto it = eclassCosts.find(classDefOp.getResult());
-              if (it == eclassCosts.end()) {
-                continue; // Skip if cost not yet computed
-              }
-              totalCost = it->second;
-            } else {
-              // Regular operation: base cost + dependency costs
-              totalCost = getNodeBaseCost(operandDef, defaultCostVal);
-              if (totalCost == -1) {
-                continue; // Skip if no cost
-              }
-              for (Value dep : operandDef->getOperands()) {
-                if (!dep.getDefiningOp()) {
-                  // Block argument dependency is free
-                  continue;
-                }
-                auto it = eclassCosts.find(dep);
-                if (it != eclassCosts.end()) {
-                  int64_t depCost = it->second;
-                  if (depCost == -1) {
-                    totalCost = -1;
-                    break;
-                  }
-                  totalCost += depCost;
-                }
-                // If dep is not in eclassCosts and not a block arg, it's a
-                // direct operation result - we need its cost
-              }
-              if (totalCost == -1) {
-                continue; // Skip if dependency costs unavailable
-              }
-            }
-
-            if (totalCost < minCost) {
-              minCost = totalCost;
-              minIndex = i;
-            }
-          }
-
-          // Update e-class cost if minimum was found
-          if (minIndex >= 0) {
-            eclassCosts[result] = minCost;
-          } else {
-            eclassCosts[result] = -1;
-          }
-
-          // Update min_cost_index attribute if changed
-          int64_t currentMinIndex = -1;
-          if (auto attr =
-                  classOp->getAttrOfType<IntegerAttr>("min_cost_index")) {
-            currentMinIndex = attr.getValue().getSExtValue();
-          }
-
-          if (currentMinIndex != minIndex && minIndex >= 0) {
-            OpBuilder builder(classOp);
-            classOp->setAttr("min_cost_index",
-                             builder.getI64IntegerAttr(minIndex));
-            changed = true;
-          }
-        }
-      }
-    });
+    module.walk(
+        [&](GraphOp graphOp) { selectGreedy(graphOp, defaultCostVal); });
   }
 };
+
 } // namespace
 } // namespace mlir::equivalence
 
@@ -417,3 +240,189 @@ void EquivalenceDialect::registerAttributes() {
 
       >();
 }
+
+namespace mlir::equivalence {
+
+static int64_t getNodeBaseCost(Operation *op, int64_t defaultCost) {
+  if (auto attr = op->getAttrOfType<CostAttr>("equivalence.cost")) {
+    return attr.getValue();
+  }
+  return defaultCost;
+}
+
+// Compute the total cost of a non-class operation given current known costs.
+// Returns -1 if any dependency is unresolved.
+static int64_t computeNodeCost(Operation *op, int64_t defaultCost,
+                               DenseMap<Operation *, int64_t> &opCosts) {
+  int64_t baseCost = getNodeBaseCost(op, defaultCost);
+  if (baseCost == -1)
+    return -1;
+
+  int64_t totalCost = baseCost;
+  for (Value dep : op->getOperands()) {
+    Operation *defOp = dep.getDefiningOp();
+    if (!defOp)
+      continue; // block argument — free
+    auto it = opCosts.find(defOp);
+    if (it == opCosts.end() || it->second == -1)
+      return -1;
+    totalCost += it->second;
+  }
+  return totalCost;
+}
+
+void selectGreedy(GraphOp graphOp, int64_t defaultCost,
+                  llvm::StringRef costAttributeName) {
+  // Assign default costs to non-class operations.
+  graphOp.walk([&](Operation *op) {
+    if (!isa<ClassOp>(op) && !isa<GraphOp>(op) && !isa<YieldOp>(op)) {
+      if (!op->hasAttr(costAttributeName)) {
+        int64_t cost = (defaultCost < 0) ? -1 : defaultCost;
+        op->setAttr(costAttributeName, CostAttr::get(op->getContext(), cost));
+      }
+    }
+  });
+
+  // Determine which operations need persistent cost tracking:
+  //   1. ClassOps (e-class cost = cost of best candidate)
+  //   2. Non-class ops that are NOT consumed by any ClassOp
+  //      (their results are used by other non-class ops, YieldOp, etc.)
+  // Candidate ops (consumed by a ClassOp) have their cost computed inline.
+
+  SmallVector<Operation *> trackedOps;
+  graphOp.walk([&](Operation *op) {
+    if (isa<GraphOp>(op) || isa<YieldOp>(op))
+      return;
+
+    if (isa<ClassOp>(op)) {
+      trackedOps.push_back(op);
+      return;
+    }
+
+    // Check if all users are ClassOps — if so, this is a candidate and
+    // doesn't need its own tracked cost.
+    bool consumedByClass = llvm::all_of(
+        op->getUsers(), [](Operation *user) { return isa<ClassOp>(user); });
+    if (!consumedByClass)
+      trackedOps.push_back(op);
+  });
+
+  DenseMap<Operation *, int64_t> opCosts;
+  bool changed = true;
+  int maxIterations = 100;
+  int iteration = 0;
+
+  while (changed && iteration < maxIterations) {
+    changed = false;
+    iteration++;
+
+    for (Operation *op : trackedOps) {
+      if (auto classOp = dyn_cast<ClassOp>(op)) {
+        // ---- Class op: pick the minimum-cost candidate ----
+        int64_t minCost = std::numeric_limits<int64_t>::max();
+        int minIndex = -1;
+
+        for (size_t i = 0; i < classOp.getInputs().size(); ++i) {
+          Value operand = classOp.getInputs()[i];
+          Operation *candidate = operand.getDefiningOp();
+          if (!candidate)
+            continue;
+
+          // Compute candidate cost inline — it's consumed by this class,
+          // so its total cost is not stored persistently.
+          int64_t cost = computeNodeCost(candidate, defaultCost, opCosts);
+          if (cost == -1)
+            continue;
+
+          if (cost < minCost) {
+            minCost = cost;
+            minIndex = i;
+          }
+        }
+
+        if (minIndex >= 0) {
+          auto it = opCosts.find(op);
+          if (it == opCosts.end() || minCost < it->second) {
+            opCosts[op] = minCost;
+            changed = true;
+          }
+
+          int64_t currentMinIndex = -1;
+          if (auto attr = classOp->getAttrOfType<IntegerAttr>("min_cost_index"))
+            currentMinIndex = attr.getValue().getSExtValue();
+          if (currentMinIndex != minIndex) {
+            OpBuilder builder(classOp);
+            classOp->setAttr("min_cost_index",
+                             builder.getI64IntegerAttr(minIndex));
+          }
+        }
+      } else {
+        // ---- Non-class op not consumed by any class ----
+        int64_t totalCost = computeNodeCost(op, defaultCost, opCosts);
+        if (totalCost >= 0) {
+          auto it = opCosts.find(op);
+          if (it == opCosts.end() || totalCost < it->second) {
+            opCosts[op] = totalCost;
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+}
+
+LogicalResult insertGraphInFunction(func::FuncOp funcOp,
+                                    bool insertSingleElementEqs) {
+  Region &funcBody = funcOp.getFunctionBody();
+
+  if (!funcBody.hasOneBlock()) {
+    return failure();
+  }
+
+  Block &entryBlock = funcBody.front();
+  auto returnOp = dyn_cast<func::ReturnOp>(*entryBlock.getTerminator());
+
+  if (!returnOp) {
+    return funcOp.emitOpError("function must have a return operation");
+  }
+
+  Location loc = funcOp.getLoc();
+  FunctionType funcType = funcOp.getFunctionType();
+  OpBuilder builder(funcOp->getContext());
+
+  auto graphOp = GraphOp::create(builder, loc, funcType.getResults(), {});
+
+  Region &graphBody = graphOp.getBody();
+  graphBody.takeBody(funcBody);
+
+  builder.setInsertionPoint(returnOp);
+  YieldOp::create(builder, returnOp.getLoc(), returnOp.getOperands());
+  returnOp.erase();
+
+  if (insertSingleElementEqs) {
+    wrapValuesInClassOps(graphBody, builder);
+  }
+
+  Block *newEntryBlock =
+      builder.createBlock(&funcBody, funcBody.end(), funcType.getInputs(),
+                          SmallVector<Location>(funcType.getNumInputs(), loc));
+
+  // Remap the inner block arguments (which were the original function
+  // arguments) to the new outer function arguments, as GraphOp captures them
+  // implicitly.
+  Block &innerBlock = graphBody.front();
+  unsigned numArgs = innerBlock.getNumArguments();
+  for (unsigned i = 0; i < numArgs; ++i) {
+    innerBlock.getArgument(i).replaceAllUsesWith(newEntryBlock->getArgument(i));
+  }
+  innerBlock.eraseArguments(0, numArgs);
+
+  builder.setInsertionPointToStart(newEntryBlock);
+  builder.insert(graphOp);
+
+  func::ReturnOp::create(builder, loc, graphOp->getResults());
+
+  return success();
+}
+
+} // namespace mlir::equivalence
