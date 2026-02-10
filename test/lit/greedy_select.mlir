@@ -11,11 +11,10 @@
 
 func.func @main(%arg0: i32) -> i32 {
   %0 = equivalence.graph -> (i32) {
-  ^bb0(%arg1: i32):
     %c2_i32 = arith.constant 2 : i32
     %c1_i32 = arith.constant 1 : i32
-    %1 = arith.shli %arg1, %c1_i32 {equivalence.cost = #equivalence.cost<2>} : i32
-    %2 = arith.muli %arg1, %c2_i32 : i32
+    %1 = arith.shli %arg0, %c1_i32 {equivalence.cost = #equivalence.cost<2>} : i32
+    %2 = arith.muli %arg0, %c2_i32 : i32
     %3 = equivalence.class %1, %2 : i32
     equivalence.yield %3 : i32
   }
