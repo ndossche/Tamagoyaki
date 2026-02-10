@@ -178,6 +178,23 @@ def EquivalenceSwitchBarFoo: Pass<"equivalence-switch-bar-foo", "::mlir::ModuleO
   }];
 }
 
+def EquivalenceExtract: Pass<"equivalence-extract", "::mlir::ModuleOp"> {
+  let summary = "Extracts selected nodes from equivalence classes.";
+  let description = [{
+    After greedy selection has set min_cost_index on ClassOps, this pass
+    extracts the selected operand from each e-class: replaces the ClassOp
+    result with the chosen operand, erases the ClassOp and all non-selected
+    candidate operations, and removes the cost attribute from the selected op.
+    ClassOps with no uses are erased entirely along with their operand ops.
+    ClassOps without a min_cost_index are left untouched.
+  }];
+  let options = [
+    Option<"removeGraphs", "remove-graphs", "bool", "false",
+           "Remove the GraphOp wrapper if all e-classes have been extracted">
+  ];
+  let dependentDialects = ["::mlir::equivalence::EquivalenceDialect"];
+}
+
 def EquivalenceSelectGreedy: Pass<"equivalence-select-greedy", "::mlir::ModuleOp"> {
   let summary = "Performs greedy cost-based extraction for equivalence classes.";
   let description = [{

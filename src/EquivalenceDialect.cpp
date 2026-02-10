@@ -94,6 +94,7 @@ namespace mlir::equivalence {
 #define GEN_PASS_DEF_EQUIVALENCEINSERTGRAPH
 #define GEN_PASS_DEF_EQUIVALENCESWITCHBARFOO
 #define GEN_PASS_DEF_EQUIVALENCESELECTGREEDY
+#define GEN_PASS_DEF_EQUIVALENCEEXTRACT
 #include "EquivalencePasses.h.inc"
 
 namespace {
@@ -209,6 +210,92 @@ public:
 
     module.walk(
         [&](GraphOp graphOp) { selectGreedy(graphOp, defaultCostVal); });
+  }
+};
+
+class EquivalenceExtract
+    : public impl::EquivalenceExtractBase<EquivalenceExtract> {
+public:
+  using impl::EquivalenceExtractBase<
+      EquivalenceExtract>::EquivalenceExtractBase;
+  void runOnOperation() final {
+    ModuleOp module = getOperation();
+
+    module.walk([&](GraphOp graphOp) { extractFromGraph(graphOp); });
+  }
+
+private:
+  void extractFromGraph(GraphOp graphOp) {
+    Block &block = graphOp.getBody().front();
+
+    SmallVector<ClassOp> classOps;
+    block.walk([&](ClassOp classOp) { classOps.push_back(classOp); });
+
+    for (ClassOp classOp : classOps) {
+      if (classOp.getResult().use_empty()) {
+        SmallVector<Operation *> toErase;
+        toErase.push_back(classOp);
+        for (Value operand : classOp.getInputs()) {
+          if (Operation *defOp = operand.getDefiningOp())
+            toErase.push_back(defOp);
+        }
+        for (Operation *op : toErase)
+          op->erase();
+        continue;
+      }
+
+      auto minCostIndexAttr =
+          classOp->getAttrOfType<IntegerAttr>("min_cost_index");
+      if (!minCostIndexAttr)
+        continue;
+
+      int64_t minIndex = minCostIndexAttr.getValue().getSExtValue();
+      Value selected = classOp.getInputs()[minIndex];
+
+      classOp.getResult().replaceAllUsesWith(selected);
+
+      SmallVector<Operation *> toErase;
+      toErase.push_back(classOp);
+      for (auto [i, operand] : llvm::enumerate(classOp.getInputs())) {
+        if (static_cast<int64_t>(i) != minIndex) {
+          if (Operation *defOp = operand.getDefiningOp())
+            toErase.push_back(defOp);
+        }
+      }
+      for (Operation *op : toErase)
+        op->erase();
+
+      if (Operation *selectedOp = selected.getDefiningOp())
+        selectedOp->removeAttr("equivalence.cost");
+    }
+
+    if (this->removeGraphs) {
+      bool hasClassOps = false;
+      block.walk([&](ClassOp) { hasClassOps = true; });
+      if (!hasClassOps)
+        inlineGraphOp(graphOp);
+    }
+  }
+
+  void inlineGraphOp(GraphOp graphOp) {
+    Block &graphBlock = graphOp.getBody().front();
+
+    auto yieldOp = cast<YieldOp>(graphBlock.getTerminator());
+    SmallVector<Value> yieldedValues(yieldOp.getValues());
+    yieldOp->erase();
+
+    Block *parentBlock = graphOp->getBlock();
+
+    auto &parentOps = parentBlock->getOperations();
+    auto insertPos = Block::iterator(graphOp);
+    parentOps.splice(insertPos, graphBlock.getOperations());
+
+    for (auto [graphResult, yieldedValue] :
+         llvm::zip(graphOp.getOutputs(), yieldedValues)) {
+      graphResult.replaceAllUsesWith(yieldedValue);
+    }
+
+    graphOp->erase();
   }
 };
 
