@@ -6,6 +6,12 @@
 
 namespace mlir::ematch {
 
+/// Convert all ematch operations in the given module to their corresponding
+/// pdl_interp.apply_rewrite operations. Each ematch op (get_class_vals,
+/// get_class_representative, get_class_result, get_class_results, union, dedup)
+/// is replaced by a pdl_interp.apply_rewrite with the same name and signature.
+void convertEmatchOpsToApplyRewrites(ModuleOp module);
+
 /// Run equality saturation on the given IR module using the provided pattern
 /// module. The patternModule is consumed (removed from parent).
 /// Returns true on success.

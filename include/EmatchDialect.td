@@ -13,6 +13,7 @@ include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Pass/PassBase.td"
+include "mlir/Dialect/PDL/IR/PDLTypes.td"
 
 //===----------------------------------------------------------------------===//
 // Ematch dialect definition.
@@ -68,6 +69,93 @@ def Ematch_FooOp : Ematch_Op<"foo", [Pure, SameOperandsAndResultType]> {
     }];
 }
 
+def Ematch_GetClassValsOp : Ematch_Op<"get_class_vals"> {
+    let summary = "Get all values in the equivalence class of a value.";
+    let description = [{
+        Take a value and return all values in its equivalence class.
+
+        If the value is an equivalence.class result, return the operands of the
+        class, otherwise return a range containing the value itself.
+    }];
+
+    let arguments = (ins PDL_Value:$value);
+    let results = (outs PDL_RangeOf<PDL_Value>:$result);
+
+    let assemblyFormat = "$value attr-dict";
+}
+
+def Ematch_GetClassRepresentativeOp : Ematch_Op<"get_class_representative"> {
+    let summary = "Get one of the values in the equivalence class of a value.";
+    let description = [{
+        Get one of the values in the equivalence class of v.
+    }];
+
+    let arguments = (ins PDL_Value:$value);
+    let results = (outs PDL_Value:$result);
+
+    let assemblyFormat = "$value attr-dict";
+}
+
+def Ematch_GetClassResultOp : Ematch_Op<"get_class_result"> {
+    let summary = "Get the equivalence.class result for the class of a value.";
+    let description = [{
+        Get the equivalence.class result corresponding to the equivalence class
+        of v.
+    }];
+
+    let arguments = (ins PDL_Value:$value);
+    let results = (outs PDL_Value:$result);
+
+    let assemblyFormat = "$value attr-dict";
+}
+
+def Ematch_GetClassResultsOp : Ematch_Op<"get_class_results"> {
+    let summary = "Get equivalence.class results for a range of values.";
+    let description = [{
+        Get the equivalence.class results corresponding to the equivalence
+        classes of a range of values.
+    }];
+
+    let arguments = (ins PDL_RangeOf<PDL_Value>:$values);
+    let results = (outs PDL_RangeOf<PDL_Value>:$result);
+
+    let assemblyFormat = "$values attr-dict";
+}
+
+def Ematch_UnionOp : Ematch_Op<"union"> {
+    let summary = "Merge values or operations into equivalence class(es).";
+    let description = [{
+        Merge two values, an operation and a value range, or two value ranges
+        into equivalence class(es).
+
+        Supported operand type combinations:
+        - (value, value): merge two values
+        - (operation, range<value>): merge operation results with values
+        - (range<value>, range<value>): merge two value ranges
+    }];
+
+    let arguments = (ins
+        AnyTypeOf<[PDL_Value, PDL_Operation, PDL_RangeOf<PDL_Value>]>:$lhs,
+        AnyTypeOf<[PDL_Value, PDL_RangeOf<PDL_Value>]>:$rhs
+    );
+
+    let assemblyFormat = "$lhs `:` type($lhs) `,` $rhs `:` type($rhs) attr-dict";
+}
+
+def Ematch_DedupOp : Ematch_Op<"dedup"> {
+    let summary = "Deduplicate an operation against the hashcons.";
+    let description = [{
+        Check if the operation already exists in the hashcons.
+
+        If so, remove the new one and return the existing one.
+    }];
+
+    let arguments = (ins PDL_Operation:$input_op);
+    let results = (outs PDL_Operation:$result_op);
+
+    let assemblyFormat = "$input_op attr-dict";
+}
+
 //===----------------------------------------------------------------------===//
 // Ematch Passes
 //===----------------------------------------------------------------------===//
@@ -86,6 +174,16 @@ def EmatchSaturateBenchmarkPass : Pass<"ematch-saturate-benchmark", "::mlir::Mod
     let description = [{
         This pass runs the ematch-saturate pass N times, cloning the IR module
         each time to ensure fresh input. Useful for profiling and benchmarking.
+    }];
+    let dependentDialects = ["::mlir::ematch::EmatchDialect"];
+}
+
+def ConvertEmatchToPDLInterpPass : Pass<"convert-ematch-to-pdl-interp", "::mlir::ModuleOp"> {
+    let summary = "Convert ematch operations to pdl_interp apply_rewrite operations.";
+    let description = [{
+        This pass converts operations in the ematch dialect into a
+        pdl_interp.apply_rewrite operations.
+        Note that this transformation also happens in ematch-saturate by default.
     }];
     let dependentDialects = ["::mlir::ematch::EmatchDialect"];
 }

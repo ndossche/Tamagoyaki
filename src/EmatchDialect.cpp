@@ -28,6 +28,7 @@
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Rewrite/PatternApplicator.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "vendor/mlir/Bytecode.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
@@ -83,6 +84,7 @@ namespace mlir::ematch {
 
 #define GEN_PASS_DEF_EMATCHSATURATEPASS
 #define GEN_PASS_DEF_EMATCHSATURATEBENCHMARKPASS
+#define GEN_PASS_DEF_CONVERTEMATCHTOPDLINTERPPASS
 #include "EmatchPasses.h.inc"
 
 namespace {
@@ -93,6 +95,38 @@ struct PendingMatch {
 };
 
 } // namespace
+
+template <typename OpTy>
+struct EmatchToApplyRewritePattern : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const final {
+    StringRef name = op->getName().stripDialect();
+    rewriter.replaceOpWithNewOp<pdl_interp::ApplyRewriteOp>(
+        op, op->getResultTypes(), rewriter.getStringAttr(name),
+        op->getOperands());
+    return success();
+  }
+};
+
+static void populateEmatchToApplyRewritePatterns(RewritePatternSet &patterns) {
+  patterns.add<EmatchToApplyRewritePattern<GetClassValsOp>,
+               EmatchToApplyRewritePattern<GetClassRepresentativeOp>,
+               EmatchToApplyRewritePattern<GetClassResultOp>,
+               EmatchToApplyRewritePattern<GetClassResultsOp>,
+               EmatchToApplyRewritePattern<UnionOp>,
+               EmatchToApplyRewritePattern<DedupOp>>(patterns.getContext());
+}
+
+void convertEmatchOpsToApplyRewrites(ModuleOp module) {
+  RewritePatternSet patterns(module.getContext());
+  populateEmatchToApplyRewritePatterns(patterns);
+  GreedyRewriteConfig config;
+  config.enableConstantCSE(false);
+  config.enableFolding(false);
+  (void)applyPatternsGreedily(module, std::move(patterns), config);
+}
 
 /// Run equality saturation on the given IR module using the provided pattern
 /// module. The patternModule is consumed (removed from parent).
@@ -258,6 +292,7 @@ struct EmatchSaturatePass
     if (!patternModule || !irModule)
       return;
 
+    convertEmatchOpsToApplyRewrites(patternModule);
     runSaturation(module.getContext(), patternModule, irModule, maxIters);
 
     auto endTime = std::chrono::high_resolution_clock::now();
@@ -304,6 +339,8 @@ struct EmatchSaturateBenchmarkPass
     if (!patternModule || !irModule)
       return;
 
+    convertEmatchOpsToApplyRewrites(patternModule);
+
     auto totalStartTime = std::chrono::high_resolution_clock::now();
 
     for (int run = 0; run < numRuns; ++run) {
@@ -331,6 +368,29 @@ struct EmatchSaturateBenchmarkPass
     LLVM_DEBUG(llvm::dbgs()
                << "EmatchSaturateBenchmarkPass total: " << totalDuration.count()
                << " µs for " << numRuns << " runs\n");
+  }
+};
+
+struct ConvertEmatchToPDLInterpPass
+    : public impl::ConvertEmatchToPDLInterpPassBase<
+          ConvertEmatchToPDLInterpPass> {
+  using impl::ConvertEmatchToPDLInterpPassBase<
+      ConvertEmatchToPDLInterpPass>::ConvertEmatchToPDLInterpPassBase;
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<mlir::pdl_interp::PDLInterpDialect>();
+  }
+
+  void runOnOperation() final {
+    ModuleOp module = getOperation();
+
+    ModuleOp patternModule = module.lookupSymbol<ModuleOp>(
+        StringAttr::get(module->getContext(), "patterns"));
+
+    if (!patternModule)
+      return;
+
+    convertEmatchOpsToApplyRewrites(patternModule);
   }
 };
 } // namespace
