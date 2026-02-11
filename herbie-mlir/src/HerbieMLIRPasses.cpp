@@ -23,6 +23,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <mach/mach.h>
@@ -30,6 +31,7 @@
 #include <optional>
 #include <rival.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace herbie {
@@ -537,6 +539,8 @@ public:
       // Step 7: Compute local error for each operation
       llvm::errs() << "Step 7: Computing local errors...\n";
 
+      DenseMap<Operation *, double> opSumDistances;
+
       for (auto &sortedOps : allSortedOps) {
         auto localErrors =
             computeLocalErrors(sortedOps, valueToRootIdx, samplingResult);
@@ -544,6 +548,8 @@ public:
         for (auto &errInfo : localErrors) {
           if (errInfo.count == 0)
             continue;
+
+          opSumDistances[errInfo.op] = errInfo.sumUlp;
 
           llvm::errs() << "  ";
           errInfo.op->print(llvm::errs(),
@@ -556,6 +562,36 @@ public:
           llvm::errs() << "\n";
         }
       }
+
+      // Step 8: Re-select with error-based costs, extract, and inline
+      llvm::errs() << "Step 8: Setting error-based costs and re-selecting...\n";
+
+      irModule.walk([&](GraphOp graphOp) {
+        clearSelection(graphOp, "equivalence.cost");
+
+        graphOp.walk([&](Operation *op) {
+          if (isa<ClassOp>(op) || isa<GraphOp>(op) || isa<YieldOp>(op))
+            return;
+
+          auto it = opSumDistances.find(op);
+          if (it != opSumDistances.end()) {
+            int64_t cost =
+                static_cast<int64_t>(std::round(std::log2(it->second + 1.0))) +
+                1;
+            op->setAttr("equivalence.cost",
+                        CostAttr::get(op->getContext(), cost));
+            llvm::errs() << "  cost=" << cost << " for ";
+            op->print(llvm::errs(), mlir::OpPrintingFlags().skipRegions());
+            llvm::errs() << "\n";
+          }
+        });
+
+        selectGreedy(graphOp, /*defaultCost=*/-1, "equivalence.cost");
+        extractFromGraph(graphOp);
+        inlineGraphOp(graphOp);
+      });
+
+      llvm::errs() << "  Extraction and inlining complete\n";
     }
 
     rival_machine_free(machine);
