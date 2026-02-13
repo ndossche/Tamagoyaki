@@ -389,6 +389,7 @@ public:
     });
 
     // Run saturation
+    mlir::ematch::convertEmatchOpsToApplyRewrites(patternModule);
     bool saturationSuccess = mlir::ematch::runSaturation(
         irModule->getContext(), patternModule, irModule, maxSaturationIters);
 
