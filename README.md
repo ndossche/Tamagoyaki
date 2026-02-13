@@ -59,16 +59,10 @@ The subproject includes the `herbie-mlir-opt` tool, which combines the `equivale
 
 ### Prerequisites
 
-> [!WARNING]  
-> The Python wheel-based build instructions currently don't work as we made [changes to upstream](https://github.com/llvm/llvm-project/pull/173161) that have not yet made their way to the Python wheels. Alternatively, it is possible to build (a recent version of) MLIR and provide that instead when invoking cmake.
-
-
-This project uses [mlir-wheels](https://makslevental.github.io/wheels) for MLIR distribution. Install dependencies with:
+This project uses [mlir-wheel](https://github.com/llvm/eudsl/tree/main/projects/mlir-wheel) for MLIR distribution. Install dependencies with:
 
 ```shell
 pip install -r requirements.txt
-pip download mlir -f https://makslevental.github.io/wheels
-unzip mlir-*.whl
 ```
 
 ### CMake Configuration
@@ -79,11 +73,15 @@ Configure the build with:
 cmake -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DPython3_EXECUTABLE=$(which python) \
-  -DCMAKE_PREFIX_PATH=$PWD/mlir \
+  -DCMAKE_PREFIX_PATH=$(python -m mlir_wheel --root-dir) \
   -DLLVM_EXTERNAL_LIT=$(which lit) \
   -B build \
   -S $PWD
 ```
+
+> [!TIP]  
+> You can also link against a local MLIR build by replacing `$(python -m mlir_wheel --root-dir)` with the path to your LLVM install directory.
+
 
 ### Running Tests
 
