@@ -208,6 +208,28 @@ bool runSaturation(MLIRContext *ctx, ModuleOp patternModule, ModuleOp irModule,
   int nIters = 0;
 
   do {
+    LLVM_DEBUG({
+      irModule.walk([&](equivalence::GraphOp graph) {
+        int classes = 0;
+        int nodes = 0;
+        graph.walk([&](Operation *op) {
+          if (dyn_cast<equivalence::ClassOp>(op)) {
+            classes += 1;
+          } else {
+            nodes += op->getNumResults();
+            for (auto result : op->getResults()) {
+              if (!(result.hasOneUse() &&
+                    dyn_cast<equivalence::ClassOp>(*result.user_begin()))) {
+                classes += 1;
+              }
+            }
+          }
+        });
+        llvm::dbgs() << "Graph has " << classes << " e-classes and " << nodes
+                     << " e-nodes (iteration " << nIters << ").\n";
+      });
+    });
+
     nIters++;
     if (nIters > maxIters) {
       break;
