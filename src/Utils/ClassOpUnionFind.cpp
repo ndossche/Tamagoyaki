@@ -9,6 +9,7 @@
 
 #include "Utils/ClassOpUnionFind.h"
 #include "EquivalenceDialect.h"
+#include "Utils/HashConsPatternRewriter.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeRange.h"
@@ -123,8 +124,11 @@ void ClassOpUnionFind::classUnion(PatternRewriter &rewriter, Value a, Value b) {
   // add newOperands to the end of the operand list
   leader->setOperands(leader->getNumOperands(), 0, newOperands);
 
-  erase(other); // remove from union-find
-  rewriter.eraseOp(other);
+  // Defer erasure: the worklist may still reference `other`, so we can't
+  // erase it immediately. Collect it for cleanup after rebuild completes.
+  // Drop all operands so the dead op doesn't keep values alive.
+  other->setOperands(ValueRange{});
+  pendingErase.push_back(other);
 
   worklist.push_back(leader);
 }
@@ -161,7 +165,7 @@ equivalence::ClassOp ClassOpUnionFind::findLeader(equivalence::ClassOp c) {
   }
 }
 
-bool ClassOpUnionFind::rebuild(PatternRewriter &rewriter) {
+bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
   LLVM_DEBUG({
     llvm::dbgs() << "Starting rebuild. Worklist contains " << worklist.size()
                  << " classes\n";
@@ -183,10 +187,19 @@ bool ClassOpUnionFind::rebuild(PatternRewriter &rewriter) {
       repair(rewriter, c);
     }
   }
+
+  // Now that the worklist is fully drained, erase all dead eclasses that
+  // were deferred during classUnion.
+  for (equivalence::ClassOp dead : pendingErase) {
+    erase(dead);            // remove from union-find
+    rewriter.eraseOp(dead); // free Operation
+  }
+  pendingErase.clear();
+
   return true;
 }
 
-void ClassOpUnionFind::repair(PatternRewriter &rewriter,
+void ClassOpUnionFind::repair(HashConsPatternRewriter &rewriter,
                               equivalence::ClassOp classOp) {
   if (classOp->getBlock() == nullptr) {
     return;
@@ -194,32 +207,24 @@ void ClassOpUnionFind::repair(PatternRewriter &rewriter,
   classOp = findLeader(classOp);
 
   llvm::DenseMap<Operation *, Operation *, SimpleOperationInfo> uniqueParents;
-
-  // Collect parent operations (operations that use this eclass's result)
-  llvm::SetVector<Operation *> parentOps;
-  for (OpOperand &use : classOp.getResult().getUses()) {
-    parentOps.insert(use.getOwner());
-  }
-
   // Collect pairs of duplicate operations to merge AFTER the loop
   SmallVector<std::pair<Operation *, Operation *>> toMerge;
 
-  for (Operation *op1 : parentOps) {
-    if (isa<equivalence::ClassOp>(op1))
-      continue;
-
+  SmallPtrSet<Operation *, 8> scheduledForMerge;
+  for (Operation *op1 : classOp.getResult().getUsers()) {
     Operation *op2 = uniqueParents.lookup(op1);
 
     if (op2) {
-      // Found an equivalent operation - record for later merging
-      toMerge.emplace_back(op1, op2);
+      if (scheduledForMerge.insert(op1).second)
+        toMerge.emplace_back(op1, op2);
     } else {
       uniqueParents[op1] = op1;
     }
   }
-
   // Now perform all merges after we're done with the hash map
   for (auto [op1, op2] : toMerge) {
+    if (op1 == op2)
+      continue;
     // Collect eclass pairs before replacement
     SmallVector<std::pair<equivalence::ClassOp, equivalence::ClassOp>>
         eclassPairs;
@@ -229,7 +234,9 @@ void ClassOpUnionFind::repair(PatternRewriter &rewriter,
       eclassPairs.emplace_back(eclass1, eclass2);
     }
 
+    assert(rewriter.erase(op1).succeeded());
     rewriter.replaceOp(op1, op2->getResults());
+    assert(rewriter.insert(op2).succeeded());
 
     for (auto [eclass1, eclass2] : eclassPairs) {
       if (eclass1 == eclass2) {

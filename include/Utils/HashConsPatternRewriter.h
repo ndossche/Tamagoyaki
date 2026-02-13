@@ -41,8 +41,6 @@ public:
   void cancelOpModification(Operation *op) override;
   void finalizeOpModification(Operation *op) override;
 
-  void eraseOp(Operation *op) override;
-
   /// Erase an operation from its region's hash-cons scope.
   /// Returns success if the operation was found and removed.
   LogicalResult erase(Operation *op);

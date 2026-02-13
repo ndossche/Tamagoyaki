@@ -13,6 +13,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Region.h"
 #include "mlir/Support/LLVM.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include <cassert>
 #include <memory>
@@ -53,14 +54,6 @@ void HashConsPatternRewriter::finalizeOpModification(Operation *op) {
   PatternRewriter::finalizeOpModification(op);
 }
 
-void HashConsPatternRewriter::eraseOp(Operation *op) {
-  LLVM_DEBUG(llvm::dbgs() << "erasing operation: " << *op << "\n");
-  if (!isa<equivalence::ClassOp>(op)) {
-    (void)erase(op); // Remove from hash-cons table first
-  }
-  PatternRewriter::eraseOp(op); // Then actually erase the operation
-}
-
 LogicalResult HashConsPatternRewriter::erase(Operation *op) {
   Region *region = op->getParentRegion();
   if (!region) {
@@ -93,6 +86,7 @@ LogicalResult HashConsPatternRewriter::insert(Operation *op) {
                << "insert: operation has no parent region: " << *op << "\n");
     return failure();
   }
+  assert(!llvm::isa<equivalence::ClassOp>(op));
 
   ScopedMapTy::ScopeTy *scope = getScope(region);
   if (!scope) {

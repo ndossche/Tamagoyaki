@@ -11,6 +11,7 @@
 #define EQUIVALENCE_SRC_UTILS_CLASSOPUNIONFIND_H
 
 #include "EquivalenceDialect.h"
+#include "Utils/HashConsPatternRewriter.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
@@ -61,11 +62,11 @@ public:
   /// Repair the parents of each ClassOp in the worklist.
   /// This also clears the worklist.
   /// Returns false when the worklist was empty, otherwise true.
-  bool rebuild(PatternRewriter &rewriter);
+  bool rebuild(HashConsPatternRewriter &rewriter);
 
   /// Repair e-graph by potentially deduplicating the parents of
   /// a merged ClassOp.
-  void repair(PatternRewriter &rewriter, equivalence::ClassOp classOp);
+  void repair(HashConsPatternRewriter &rewriter, equivalence::ClassOp classOp);
 
   equivalence::ClassOp findLeader(equivalence::ClassOp c);
 
@@ -74,6 +75,8 @@ public:
 
 private:
   llvm::EquivalenceClasses<equivalence::ClassOp> unionFind;
+
+  SmallVector<equivalence::ClassOp> pendingErase;
 };
 
 } // namespace mlir::ematch
