@@ -141,11 +141,7 @@ bool runSaturation(MLIRContext *ctx, ModuleOp patternModule, ModuleOp irModule,
   ClassOpUnionFind uf{};
   HashConsPatternRewriter hashconsRewriter(ctx);
 
-  irModule.walk([&](Operation *e) {
-    equivalence::GraphOp graph = llvm::dyn_cast<equivalence::GraphOp>(*e);
-    if (!graph) {
-      return;
-    }
+  irModule.walk([&](equivalence::GraphOp graph) {
     Region *region = &(graph.getBody());
     auto scope = hashconsRewriter.createRootScope(region);
 
