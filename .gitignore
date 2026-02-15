@@ -2,6 +2,7 @@
 tablegen_compile_commands.yml
 .zed
 *.inc
+uv.lock
 
 CMakeLists.txt.user
 CMakeCache.txt

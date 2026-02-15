@@ -1,9 +1,0 @@
-nanobind>=2.4, <3.0
-# numpy>=1.19.5
-pybind11>=2.10.0, <=2.13.6
-# PyYAML>=5.4.0
-# ml_dtypes>=0.1.0, <=0.5.0
-cmake-format
-lit
---find-links https://llvm.github.io/eudsl
-mlir_wheel

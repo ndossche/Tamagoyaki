@@ -1,0 +1,13 @@
+[project]
+name = "tamagoyaki"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "cmake-format>=0.6.13",
+    "lit>=18.1.8",
+    "mlir-wheel>=20260214",
+    "pre-commit>=4.5.1",
+    "xdsl>=0.56.2",
+]
+[tool.uv]
+find-links = ["https://llvm.github.io/eudsl"]

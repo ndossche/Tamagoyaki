@@ -62,7 +62,8 @@ The subproject includes the `herbie-mlir-opt` tool, which combines the `equivale
 This project uses [mlir-wheel](https://github.com/llvm/eudsl/tree/main/projects/mlir-wheel) for MLIR distribution. Install dependencies with:
 
 ```shell
-pip install -r requirements.txt
+uv init
+uv run pre-commit install
 ```
 
 ### CMake Configuration
@@ -72,9 +73,9 @@ Configure the build with:
 ```shell
 cmake -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
-  -DPython3_EXECUTABLE=$(which python) \
-  -DCMAKE_PREFIX_PATH=$(python -m mlir_wheel --root-dir) \
-  -DLLVM_EXTERNAL_LIT=$(which lit) \
+  -DPython3_EXECUTABLE=$(uv run which python) \
+  -DCMAKE_PREFIX_PATH=$(uv run python -m mlir_wheel --root-dir) \
+  -DLLVM_EXTERNAL_LIT=$(uv run which lit) \
   -B build \
   -S $PWD
 ```
