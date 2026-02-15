@@ -26,7 +26,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <mach/mach.h>
 #include <mpfr.h>
 #include <optional>
 #include <rival.h>
