@@ -21,8 +21,9 @@ namespace herbie {
 
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
-  registry.insert<mlir::equivalence::EquivalenceDialect,
-                  mlir::ematch::EmatchDialect>();
+  registry
+      .insert<herbie::HerbieMLIRDialect, mlir::equivalence::EquivalenceDialect,
+              mlir::ematch::EmatchDialect>();
   registerAllDialects(registry);
 
   // Register Rival external models for RivalCompileableInterface

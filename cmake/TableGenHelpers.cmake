@@ -68,6 +68,15 @@ function(add_dialect_tablegen)
         ${ARG_DEST_DIR}/${ARG_NAME}Dialect.h.inc
         ${ARG_DEST_DIR}/${ARG_NAME}Dialect.cpp.inc)
 
+    elseif(component STREQUAL "Enums")
+      mlir_tablegen(${ARG_NAME}Enums.h.inc -gen-enum-decls)
+      list(APPEND build_files ${TABLEGEN_OUTPUT})
+      mlir_tablegen(${ARG_NAME}Enums.cpp.inc -gen-enum-defs)
+      list(APPEND build_files ${TABLEGEN_OUTPUT})
+      list(APPEND generated_files
+        ${ARG_DEST_DIR}/${ARG_NAME}Enums.h.inc
+        ${ARG_DEST_DIR}/${ARG_NAME}Enums.cpp.inc)
+
     elseif(component STREQUAL "Passes")
       mlir_tablegen(${ARG_NAME}Passes.h.inc --gen-pass-decls -name ${ARG_NAME})
       list(APPEND build_files ${TABLEGEN_OUTPUT})
@@ -83,7 +92,7 @@ function(add_dialect_tablegen)
         ${ARG_DEST_DIR}/${ARG_NAME}OpInterfaces.cpp.inc)
 
     else()
-      message(FATAL_ERROR "Unknown component: ${component}. Supported: Ops, Types, Attrs, Dialect, Passes, OpInterfaces")
+      message(FATAL_ERROR "Unknown component: ${component}. Supported: Ops, Types, Attrs, Dialect, Enums, Passes, OpInterfaces")
     endif()
   endforeach()
 

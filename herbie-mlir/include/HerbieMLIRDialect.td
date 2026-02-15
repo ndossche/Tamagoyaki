@@ -1,14 +1,112 @@
-//===- HerbieMLIRPasses.td - HerbieMLIR passes definition -------*- tablegen -*-===//
+//===- HerbieMLIRDialect.td - HerbieMLIR dialect --------*- tablegen -*-===//
 //
-// This file defines passes for the herbie-mlir project.
+// This file defines the HerbieMLIR dialect, operations, attributes, and passes.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef HERBIE_MLIR_PASSES
-#define HERBIE_MLIR_PASSES
+#ifndef HERBIE_MLIR_DIALECT
+#define HERBIE_MLIR_DIALECT
 
-include "mlir/Pass/PassBase.td"
 include "mlir/IR/OpBase.td"
+include "mlir/IR/AttrTypeBase.td"
+include "mlir/IR/EnumAttr.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Pass/PassBase.td"
+
+//===----------------------------------------------------------------------===//
+// HerbieMLIR dialect definition.
+//===----------------------------------------------------------------------===//
+
+def HerbieMLIR_Dialect : Dialect {
+    let name = "herbie";
+    let summary = "The Herbie MLIR dialect.";
+    let description = [{
+        This dialect provides operations and attributes for the Herbie
+        floating-point optimization pipeline.
+    }];
+    let cppNamespace = "::herbie";
+
+    let useDefaultAttributePrinterParser = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Base HerbieMLIR operation definition.
+//===----------------------------------------------------------------------===//
+
+class HerbieMLIR_Op<string mnemonic, list<Trait> traits = []> :
+        Op<HerbieMLIR_Dialect, mnemonic, traits>;
+
+//===----------------------------------------------------------------------===//
+// HerbieMLIR Enum Attributes
+//===----------------------------------------------------------------------===//
+
+def HerbieMLIR_Constant_E            : I32EnumAttrCase<"Const_E",            0, "E">;
+def HerbieMLIR_Constant_PI           : I32EnumAttrCase<"Const_PI",           1, "PI">;
+def HerbieMLIR_Constant_M_2_SQRTPI   : I32EnumAttrCase<"Const_M_2_SQRTPI",  2, "M_2_SQRTPI">;
+def HerbieMLIR_Constant_LOG2E        : I32EnumAttrCase<"Const_LOG2E",        3, "LOG2E">;
+def HerbieMLIR_Constant_PI_2         : I32EnumAttrCase<"Const_PI_2",         4, "PI_2">;
+def HerbieMLIR_Constant_SQRT2        : I32EnumAttrCase<"Const_SQRT2",        5, "SQRT2">;
+def HerbieMLIR_Constant_LOG10E       : I32EnumAttrCase<"Const_LOG10E",       6, "LOG10E">;
+def HerbieMLIR_Constant_PI_4         : I32EnumAttrCase<"Const_PI_4",         7, "PI_4">;
+def HerbieMLIR_Constant_SQRT1_2      : I32EnumAttrCase<"Const_SQRT1_2",      8, "SQRT1_2">;
+def HerbieMLIR_Constant_LN2          : I32EnumAttrCase<"Const_LN2",          9, "LN2">;
+def HerbieMLIR_Constant_M_1_PI       : I32EnumAttrCase<"Const_M_1_PI",      10, "M_1_PI">;
+def HerbieMLIR_Constant_INFINITY     : I32EnumAttrCase<"Const_INFINITY",     11, "INFINITY">;
+def HerbieMLIR_Constant_LN10         : I32EnumAttrCase<"Const_LN10",        12, "LN10">;
+def HerbieMLIR_Constant_M_2_PI       : I32EnumAttrCase<"Const_M_2_PI",      13, "M_2_PI">;
+
+def HerbieMLIR_ConstantEnum : I32EnumAttr<"Constant",
+    "Mathematical constant symbols", [
+    HerbieMLIR_Constant_E,
+    HerbieMLIR_Constant_PI,
+    HerbieMLIR_Constant_M_2_SQRTPI,
+    HerbieMLIR_Constant_LOG2E,
+    HerbieMLIR_Constant_PI_2,
+    HerbieMLIR_Constant_SQRT2,
+    HerbieMLIR_Constant_LOG10E,
+    HerbieMLIR_Constant_PI_4,
+    HerbieMLIR_Constant_SQRT1_2,
+    HerbieMLIR_Constant_LN2,
+    HerbieMLIR_Constant_M_1_PI,
+    HerbieMLIR_Constant_INFINITY,
+    HerbieMLIR_Constant_LN10,
+    HerbieMLIR_Constant_M_2_PI
+]> {
+    let genSpecializedAttr = 0;
+    let cppNamespace = "::herbie";
+}
+
+def HerbieMLIR_ConstantAttr : EnumAttr<HerbieMLIR_Dialect, HerbieMLIR_ConstantEnum, "constant">;
+
+//===----------------------------------------------------------------------===//
+// HerbieMLIR Operations
+//===----------------------------------------------------------------------===//
+
+def HerbieMLIR_ConstantOp : HerbieMLIR_Op<"constant", [Pure]> {
+    let summary = "A mathematical constant value";
+    let description = [{
+        The `herbie.constant` operation produces the value of a well-known
+        mathematical constant (e.g. π, 𝑒, √2).
+
+        Example:
+
+        ```mlir
+        %0 = herbie.constant E : f64
+        %1 = herbie.constant PI : f32
+        ```
+    }];
+
+    let arguments = (ins HerbieMLIR_ConstantAttr:$symbol);
+    let results = (outs AnyType:$value);
+
+    let assemblyFormat = [{
+        $symbol attr-dict `:` type($value)
+    }];
+}
+
+//===----------------------------------------------------------------------===//
+// HerbieMLIR Passes
+//===----------------------------------------------------------------------===//
 
 def HerbieMLIRTemplatePass : Pass<"herbie-mlir-template", "::mlir::ModuleOp"> {
   let summary = "Template pass for HerbieMLIR.";
@@ -107,6 +205,9 @@ def HerbieOptimizePass : Pass<"herbie-optimize", "::mlir::ModuleOp"> {
   ];
 }
 
+//===----------------------------------------------------------------------===//
+// HerbieMLIR Interfaces
+//===----------------------------------------------------------------------===//
 
 def RivalCompileableInterface : OpInterface<"RivalCompileableInterface"> {
   let description = [{
@@ -124,4 +225,4 @@ def RivalCompileableInterface : OpInterface<"RivalCompileableInterface"> {
   ];
 }
 
-#endif // HERBIE_MLIR_PASSES
+#endif // HERBIE_MLIR_DIALECT
