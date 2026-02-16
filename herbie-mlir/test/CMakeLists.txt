@@ -4,10 +4,18 @@ if(NOT LLVM_EXTERNAL_LIT)
   message(FATAL_ERROR "LLVM_EXTERNAL_LIT not set. Required for running tests.")
 endif()
 
+set(TAMAGOYAKI_BINARY_DIR ${PROJECT_BINARY_DIR})
+set(HERBIE_MLIR_TEST_LIT_CFG ${CMAKE_CURRENT_SOURCE_DIR}/lit/lit.cfg.py)
+configure_lit_site_cfg(
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit/lit.site.cfg.py.in
+  ${CMAKE_CURRENT_BINARY_DIR}/lit/lit.site.cfg.py MAIN_CONFIG
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit/lit.cfg.py)
+
 add_lit_testsuite(check-herbie-mlir
   "Running herbie-mlir tests"
-  "${CMAKE_CURRENT_SOURCE_DIR}/lit"
+  "${CMAKE_CURRENT_BINARY_DIR}/lit"
   DEPENDS
     herbieMLIR
+    herbie-mlir-opt
     tamagoyaki-opt
 )
