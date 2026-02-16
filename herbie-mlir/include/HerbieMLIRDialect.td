@@ -8,6 +8,7 @@
 #define HERBIE_MLIR_DIALECT
 
 include "mlir/IR/OpBase.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -101,6 +102,69 @@ def HerbieMLIR_ConstantOp : HerbieMLIR_Op<"constant", [Pure]> {
 
     let assemblyFormat = [{
         $symbol attr-dict `:` type($value)
+    }];
+}
+
+def HerbieMLIR_SoundDivOp : HerbieMLIR_Op<"sound_div", [Pure, SameOperandsAndResultType]> {
+    let summary = "Division with a fallback for undefined inputs";
+    let description = [{
+        The `herbie.sound_div` operation performs division, returning
+        `fallback` when the operation is not defined (e.g. division by zero).
+
+        Example:
+
+        ```mlir
+        %0 = herbie.sound_div %a, %b, %fb : f64
+        ```
+    }];
+
+    let arguments = (ins AnyType:$lhs, AnyType:$rhs, AnyType:$fallback);
+    let results = (outs AnyType:$result);
+
+    let assemblyFormat = [{
+        $lhs `,` $rhs `,` $fallback attr-dict `:` type($result)
+    }];
+}
+
+def HerbieMLIR_SoundPowOp : HerbieMLIR_Op<"sound_pow", [Pure, SameOperandsAndResultType]> {
+    let summary = "Power with a fallback for undefined inputs";
+    let description = [{
+        The `herbie.sound_pow` operation computes exponentiation, returning
+        `fallback` when the operation is not defined on the inputs.
+
+        Example:
+
+        ```mlir
+        %0 = herbie.sound_pow %base, %exp, %fb : f64
+        ```
+    }];
+
+    let arguments = (ins AnyType:$lhs, AnyType:$rhs, AnyType:$fallback);
+    let results = (outs AnyType:$result);
+
+    let assemblyFormat = [{
+        $lhs `,` $rhs `,` $fallback attr-dict `:` type($result)
+    }];
+}
+
+def HerbieMLIR_SoundLogOp : HerbieMLIR_Op<"sound_log", [Pure, SameOperandsAndResultType]> {
+    let summary = "Logarithm with a fallback for undefined inputs";
+    let description = [{
+        The `herbie.sound_log` operation computes the logarithm, returning
+        `fallback` when the operation is not defined on the inputs.
+
+        Example:
+
+        ```mlir
+        %0 = herbie.sound_log %a, %b, %fb : f64
+        ```
+    }];
+
+    let arguments = (ins AnyType:$lhs, AnyType:$rhs, AnyType:$fallback);
+    let results = (outs AnyType:$result);
+
+    let assemblyFormat = [{
+        $lhs `,` $rhs `,` $fallback attr-dict `:` type($result)
     }];
 }
 
