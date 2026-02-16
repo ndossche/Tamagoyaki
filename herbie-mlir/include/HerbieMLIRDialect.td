@@ -150,21 +150,22 @@ def HerbieMLIR_SoundPowOp : HerbieMLIR_Op<"sound_pow", [Pure, SameOperandsAndRes
 def HerbieMLIR_SoundLogOp : HerbieMLIR_Op<"sound_log", [Pure, SameOperandsAndResultType]> {
     let summary = "Logarithm with a fallback for undefined inputs";
     let description = [{
-        The `herbie.sound_log` operation computes the logarithm, returning
-        `fallback` when the operation is not defined on the inputs.
+        The `herbie.sound_log` operation computes the natural logarithm,
+        returning `fallback` when the operation is not defined on the input
+        (e.g. non-positive values).
 
         Example:
 
         ```mlir
-        %0 = herbie.sound_log %a, %b, %fb : f64
+        %0 = herbie.sound_log %a, %fb : f64
         ```
     }];
 
-    let arguments = (ins AnyType:$lhs, AnyType:$rhs, AnyType:$fallback);
+    let arguments = (ins AnyType:$value, AnyType:$fallback);
     let results = (outs AnyType:$result);
 
     let assemblyFormat = [{
-        $lhs `,` $rhs `,` $fallback attr-dict `:` type($result)
+        $value `,` $fallback attr-dict `:` type($result)
     }];
 }
 
@@ -267,6 +268,16 @@ def HerbieOptimizePass : Pass<"herbie-optimize", "::mlir::ModuleOp"> {
     Option<"maxSaturationIters", "max-saturation-iters", "int", "4",
            "Maximum number of equality saturation iterations">
   ];
+}
+
+def LowerHerbieSoundOpsPass : Pass<"lower-herbie-sound-ops", "::mlir::ModuleOp"> {
+  let summary = "Lower herbie.sound_* operations to arith/math counterparts.";
+  let description = [{
+    Replaces `herbie.sound_div`, `herbie.sound_pow`, and `herbie.sound_log`
+    operations with their standard arith/math equivalents (`arith.divf`,
+    `math.powf`, `math.log`), dropping the fallback argument.
+  }];
+  let dependentDialects = ["::mlir::arith::ArithDialect", "::mlir::math::MathDialect"];
 }
 
 def LowerHerbieConstantPass : Pass<"lower-herbie-constant", "::mlir::ModuleOp"> {

@@ -9,6 +9,7 @@
 #include "mlir/Analysis/TopologicalSortUtils.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -42,6 +43,7 @@ namespace herbie {
 #define GEN_PASS_DEF_RIVALEVALUATEPASS
 #define GEN_PASS_DEF_HERBIEPRINTTOPOSORT
 #define GEN_PASS_DEF_HERBIEOPTIMIZEPASS
+#define GEN_PASS_DEF_LOWERHERBIESOUNDOPSPASS
 #define GEN_PASS_DEF_LOWERHERBIECONSTANTPASS
 #include "HerbieMLIRPasses.h.inc"
 
@@ -640,6 +642,70 @@ public:
     llvm::errs() << "=== End Herbie Optimize ===\n";
   }
 };
+
+// ===----------------------------------------------------------------------===
+// // LowerHerbieSoundOpsPass
+// ===----------------------------------------------------------------------===
+// //
+
+struct LowerSoundDivPattern : public OpRewritePattern<SoundDivOp> {
+  using OpRewritePattern<SoundDivOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SoundDivOp op,
+                                PatternRewriter &rewriter) const final {
+    rewriter.replaceOpWithNewOp<arith::DivFOp>(op, op.getLhs(), op.getRhs());
+    return success();
+  }
+};
+
+struct LowerSoundPowPattern : public OpRewritePattern<SoundPowOp> {
+  using OpRewritePattern<SoundPowOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SoundPowOp op,
+                                PatternRewriter &rewriter) const final {
+    rewriter.replaceOpWithNewOp<math::PowFOp>(op, op.getLhs(), op.getRhs());
+    return success();
+  }
+};
+
+struct LowerSoundLogPattern : public OpRewritePattern<SoundLogOp> {
+  using OpRewritePattern<SoundLogOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SoundLogOp op,
+                                PatternRewriter &rewriter) const final {
+    rewriter.replaceOpWithNewOp<math::LogOp>(op, op.getValue());
+    return success();
+  }
+};
+
+static void populateLowerHerbieSoundOpsPatterns(RewritePatternSet &patterns) {
+  patterns
+      .add<LowerSoundDivPattern, LowerSoundPowPattern, LowerSoundLogPattern>(
+          patterns.getContext());
+}
+
+class LowerHerbieSoundOpsPass
+    : public impl::LowerHerbieSoundOpsPassBase<LowerHerbieSoundOpsPass> {
+public:
+  using impl::LowerHerbieSoundOpsPassBase<
+      LowerHerbieSoundOpsPass>::LowerHerbieSoundOpsPassBase;
+
+  void runOnOperation() final {
+    mlir::ModuleOp module = getOperation();
+
+    RewritePatternSet patterns(module.getContext());
+    populateLowerHerbieSoundOpsPatterns(patterns);
+    GreedyRewriteConfig config;
+    config.enableConstantCSE(false);
+    config.enableFolding(false);
+    (void)applyPatternsGreedily(module, std::move(patterns), config);
+  }
+};
+
+// ===----------------------------------------------------------------------===
+// // LowerHerbieConstantPass
+// ===----------------------------------------------------------------------===
+// //
 
 struct LowerHerbieConstantPattern : public OpRewritePattern<ConstantOp> {
   using OpRewritePattern<ConstantOp>::OpRewritePattern;
