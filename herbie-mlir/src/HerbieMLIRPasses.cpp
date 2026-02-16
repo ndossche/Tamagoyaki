@@ -7,6 +7,7 @@
 #include "IntervalSearch.h"
 #include "LocalError.h"
 #include "mlir/Analysis/TopologicalSortUtils.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/IR/Block.h"
@@ -15,8 +16,10 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/OwningOpRef.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -39,10 +42,46 @@ namespace herbie {
 #define GEN_PASS_DEF_RIVALEVALUATEPASS
 #define GEN_PASS_DEF_HERBIEPRINTTOPOSORT
 #define GEN_PASS_DEF_HERBIEOPTIMIZEPASS
+#define GEN_PASS_DEF_LOWERHERBIECONSTANTPASS
 #include "HerbieMLIRPasses.h.inc"
 
 using namespace mlir;
 using namespace mlir::equivalence;
+
+// Helper function to map herbie.constant symbols to their floating-point values
+static double getConstantValue(::herbie::Constant constantEnum) {
+  switch (constantEnum) {
+  case ::herbie::Constant::Const_E:
+    return M_E;
+  case ::herbie::Constant::Const_PI:
+    return M_PI;
+  case ::herbie::Constant::Const_M_2_SQRTPI:
+    return M_2_SQRTPI;
+  case ::herbie::Constant::Const_LOG2E:
+    return M_LOG2E;
+  case ::herbie::Constant::Const_PI_2:
+    return M_PI_2;
+  case ::herbie::Constant::Const_SQRT2:
+    return M_SQRT2;
+  case ::herbie::Constant::Const_LOG10E:
+    return M_LOG10E;
+  case ::herbie::Constant::Const_PI_4:
+    return M_PI_4;
+  case ::herbie::Constant::Const_SQRT1_2:
+    return M_SQRT1_2;
+  case ::herbie::Constant::Const_LN2:
+    return M_LN2;
+  case ::herbie::Constant::Const_M_1_PI:
+    return M_1_PI;
+  case ::herbie::Constant::Const_INFINITY:
+    return INFINITY;
+  case ::herbie::Constant::Const_LN10:
+    return M_LN10;
+  case ::herbie::Constant::Const_M_2_PI:
+    return M_2_PI;
+  }
+  llvm_unreachable("Unknown herbie constant");
+}
 
 SmallVector<Operation *> computeSelectedTopoSort(GraphOp graphOp) {
   Block &block = graphOp.getBody().front();
@@ -599,6 +638,45 @@ public:
     rival_expr_arena_free(arena);
 
     llvm::errs() << "=== End Herbie Optimize ===\n";
+  }
+};
+
+struct LowerHerbieConstantPattern : public OpRewritePattern<ConstantOp> {
+  using OpRewritePattern<ConstantOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ConstantOp herbieConstOp,
+                                PatternRewriter &rewriter) const final {
+    // Get the constant value from the symbol
+    double value = getConstantValue(herbieConstOp.getSymbol());
+
+    // Create an arith.constant with the same type and value
+    auto resultType = herbieConstOp.getResult().getType();
+    auto floatAttr = rewriter.getFloatAttr(resultType, value);
+
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(herbieConstOp, floatAttr);
+    return success();
+  }
+};
+
+static void populateLowerHerbieConstantPatterns(RewritePatternSet &patterns) {
+  patterns.add<LowerHerbieConstantPattern>(patterns.getContext());
+}
+
+class LowerHerbieConstantPass
+    : public impl::LowerHerbieConstantPassBase<LowerHerbieConstantPass> {
+public:
+  using impl::LowerHerbieConstantPassBase<
+      LowerHerbieConstantPass>::LowerHerbieConstantPassBase;
+
+  void runOnOperation() final {
+    mlir::ModuleOp module = getOperation();
+
+    RewritePatternSet patterns(module.getContext());
+    populateLowerHerbieConstantPatterns(patterns);
+    GreedyRewriteConfig config;
+    config.enableConstantCSE(false);
+    config.enableFolding(false);
+    (void)applyPatternsGreedily(module, std::move(patterns), config);
   }
 };
 

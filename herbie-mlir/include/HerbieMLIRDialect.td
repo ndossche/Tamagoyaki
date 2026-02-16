@@ -19,7 +19,7 @@ include "mlir/Pass/PassBase.td"
 
 def HerbieMLIR_Dialect : Dialect {
     let name = "herbie";
-    let summary = "The Herbie MLIR dialect.";
+    let summary = "The Herbie-MLIR dialect.";
     let description = [{
         This dialect provides operations and attributes for the Herbie
         floating-point optimization pipeline.
@@ -86,7 +86,7 @@ def HerbieMLIR_ConstantOp : HerbieMLIR_Op<"constant", [Pure]> {
     let summary = "A mathematical constant value";
     let description = [{
         The `herbie.constant` operation produces the value of a well-known
-        mathematical constant (e.g. π, 𝑒, √2).
+        mathematical constant (e.g. π, 𝑒, √2, and others).
 
         Example:
 
@@ -203,6 +203,15 @@ def HerbieOptimizePass : Pass<"herbie-optimize", "::mlir::ModuleOp"> {
     Option<"maxSaturationIters", "max-saturation-iters", "int", "4",
            "Maximum number of equality saturation iterations">
   ];
+}
+
+def LowerHerbieConstantPass : Pass<"lower-herbie-constant", "::mlir::ModuleOp"> {
+  let summary = "Lower herbie.constant operations to arith.constant.";
+  let description = [{
+    Replaces `herbie.constant` operations with `arith.constant` operations
+    containing the actual floating-point value of the mathematical constant.
+  }];
+  let dependentDialects = ["::mlir::arith::ArithDialect"];
 }
 
 //===----------------------------------------------------------------------===//
