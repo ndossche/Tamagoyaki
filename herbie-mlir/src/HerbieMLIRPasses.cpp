@@ -345,6 +345,47 @@ public:
   }
 };
 
+// ===----------------------------------------------------------------------===
+// // Herbie Sound Ops lowering patterns (shared by LowerHerbieSoundOpsPass
+// // and HerbieOptimizePass)
+// ===----------------------------------------------------------------------===
+
+struct LowerSoundDivPattern : public OpRewritePattern<SoundDivOp> {
+  using OpRewritePattern<SoundDivOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SoundDivOp op,
+                                PatternRewriter &rewriter) const final {
+    rewriter.replaceOpWithNewOp<arith::DivFOp>(op, op.getLhs(), op.getRhs());
+    return success();
+  }
+};
+
+struct LowerSoundPowPattern : public OpRewritePattern<SoundPowOp> {
+  using OpRewritePattern<SoundPowOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SoundPowOp op,
+                                PatternRewriter &rewriter) const final {
+    rewriter.replaceOpWithNewOp<math::PowFOp>(op, op.getLhs(), op.getRhs());
+    return success();
+  }
+};
+
+struct LowerSoundLogPattern : public OpRewritePattern<SoundLogOp> {
+  using OpRewritePattern<SoundLogOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SoundLogOp op,
+                                PatternRewriter &rewriter) const final {
+    rewriter.replaceOpWithNewOp<math::LogOp>(op, op.getValue());
+    return success();
+  }
+};
+
+static void populateLowerHerbieSoundOpsPatterns(RewritePatternSet &patterns) {
+  patterns
+      .add<LowerSoundDivPattern, LowerSoundPowPattern, LowerSoundLogPattern>(
+          patterns.getContext());
+}
+
 class HerbieOptimizePass
     : public impl::HerbieOptimizePassBase<HerbieOptimizePass> {
 public:
@@ -437,6 +478,16 @@ public:
       llvm::errs() << "  Warning: Saturation returned false\n";
     } else {
       llvm::errs() << "  Saturation completed\n";
+    }
+
+    // Lower herbie sound ops introduced during saturation
+    {
+      RewritePatternSet patterns(irModule.getContext());
+      populateLowerHerbieSoundOpsPatterns(patterns);
+      GreedyRewriteConfig config;
+      config.enableConstantCSE(false);
+      config.enableFolding(false);
+      (void)applyPatternsGreedily(irModule, std::move(patterns), config);
     }
 
     // select greedily:
@@ -642,47 +693,6 @@ public:
     llvm::errs() << "=== End Herbie Optimize ===\n";
   }
 };
-
-// ===----------------------------------------------------------------------===
-// // LowerHerbieSoundOpsPass
-// ===----------------------------------------------------------------------===
-// //
-
-struct LowerSoundDivPattern : public OpRewritePattern<SoundDivOp> {
-  using OpRewritePattern<SoundDivOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(SoundDivOp op,
-                                PatternRewriter &rewriter) const final {
-    rewriter.replaceOpWithNewOp<arith::DivFOp>(op, op.getLhs(), op.getRhs());
-    return success();
-  }
-};
-
-struct LowerSoundPowPattern : public OpRewritePattern<SoundPowOp> {
-  using OpRewritePattern<SoundPowOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(SoundPowOp op,
-                                PatternRewriter &rewriter) const final {
-    rewriter.replaceOpWithNewOp<math::PowFOp>(op, op.getLhs(), op.getRhs());
-    return success();
-  }
-};
-
-struct LowerSoundLogPattern : public OpRewritePattern<SoundLogOp> {
-  using OpRewritePattern<SoundLogOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(SoundLogOp op,
-                                PatternRewriter &rewriter) const final {
-    rewriter.replaceOpWithNewOp<math::LogOp>(op, op.getValue());
-    return success();
-  }
-};
-
-static void populateLowerHerbieSoundOpsPatterns(RewritePatternSet &patterns) {
-  patterns
-      .add<LowerSoundDivPattern, LowerSoundPowPattern, LowerSoundLogPattern>(
-          patterns.getContext());
-}
 
 class LowerHerbieSoundOpsPass
     : public impl::LowerHerbieSoundOpsPassBase<LowerHerbieSoundOpsPass> {
