@@ -167,6 +167,10 @@ def EmatchSaturatePass : Pass<"ematch-saturate", "::mlir::ModuleOp"> {
         It serves as an example of implementing a transformation pass.
     }];
     let dependentDialects = ["::mlir::ematch::EmatchDialect"];
+    let options = [
+        Option<"maxIters", "max-iters", "int", "4",
+               "Maximum number of iterations before equality saturation times out.">
+    ];
 }
 
 def EmatchSaturateBenchmarkPass : Pass<"ematch-saturate-benchmark", "::mlir::ModuleOp"> {
@@ -176,6 +180,12 @@ def EmatchSaturateBenchmarkPass : Pass<"ematch-saturate-benchmark", "::mlir::Mod
         each time to ensure fresh input. Useful for profiling and benchmarking.
     }];
     let dependentDialects = ["::mlir::ematch::EmatchDialect"];
+    let options = [
+        Option<"numRuns", "num-runs", "int", "10",
+               "Number of times to run equality saturation.">,
+        Option<"maxIters", "max-iters", "int", "4",
+               "Maximum number of iterations before equality saturation times out.">
+    ];
 }
 
 def ConvertEmatchToPDLInterpPass : Pass<"convert-ematch-to-pdl-interp", "::mlir::ModuleOp"> {

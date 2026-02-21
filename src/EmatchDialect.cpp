@@ -283,16 +283,6 @@ struct EmatchSaturatePass
   using impl::EmatchSaturatePassBase<
       EmatchSaturatePass>::EmatchSaturatePassBase;
 
-  EmatchSaturatePass() = default;
-  EmatchSaturatePass(const EmatchSaturatePass &pass)
-      : EmatchSaturatePassBase(pass) {}
-
-  Option<int> maxIters{
-      *this, "max-iters",
-      llvm::cl::desc("Maximum number of iterations before equality saturation "
-                     "times out."),
-      llvm::cl::init(4)};
-
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<mlir::pdl_interp::PDLInterpDialect>();
   }
@@ -326,21 +316,6 @@ struct EmatchSaturateBenchmarkPass
           EmatchSaturateBenchmarkPass> {
   using impl::EmatchSaturateBenchmarkPassBase<
       EmatchSaturateBenchmarkPass>::EmatchSaturateBenchmarkPassBase;
-
-  EmatchSaturateBenchmarkPass() = default;
-  EmatchSaturateBenchmarkPass(const EmatchSaturateBenchmarkPass &pass)
-      : EmatchSaturateBenchmarkPassBase(pass) {}
-
-  Option<int> numRuns{
-      *this, "num-runs",
-      llvm::cl::desc("Number of times to run equality saturation."),
-      llvm::cl::init(10)};
-
-  Option<int> maxIters{
-      *this, "max-iters",
-      llvm::cl::desc("Maximum number of iterations before equality saturation "
-                     "times out."),
-      llvm::cl::init(4)};
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<mlir::pdl_interp::PDLInterpDialect>();
