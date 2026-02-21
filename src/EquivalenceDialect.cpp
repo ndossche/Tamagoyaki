@@ -348,12 +348,10 @@ void selectGreedy(GraphOp graphOp, int64_t defaultCost,
         for (size_t i = 0; i < classOp.getInputs().size(); ++i) {
           Value operand = classOp.getInputs()[i];
           Operation *candidate = operand.getDefiningOp();
-          if (!candidate)
-            continue;
-
-          // Compute candidate cost inline — it's consumed by this class,
-          // so its total cost is not stored persistently.
-          int64_t cost = computeNodeCost(candidate, defaultCost, opCosts);
+          // Block arguments have no defining op and are free (cost 0).
+          int64_t cost = 0;
+          if (candidate)
+            cost = computeNodeCost(candidate, defaultCost, opCosts);
           if (cost == -1)
             continue;
 
