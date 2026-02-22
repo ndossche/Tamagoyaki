@@ -513,7 +513,17 @@ void inlineGraphOp(GraphOp graphOp) {
 
   auto &parentOps = parentBlock->getOperations();
   auto insertPos = Block::iterator(graphOp);
+
+  SmallVector<Operation *> inlinedOps;
+  for (Operation &op : graphBlock)
+    inlinedOps.push_back(&op);
+
   parentOps.splice(insertPos, graphBlock.getOperations());
+
+  computeTopologicalSorting(inlinedOps);
+
+  for (Operation *op : inlinedOps)
+    op->moveBefore(graphOp);
 
   for (auto [graphResult, yieldedValue] :
        llvm::zip(graphOp.getOutputs(), yieldedValues)) {
