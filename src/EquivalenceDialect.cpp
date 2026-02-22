@@ -529,9 +529,6 @@ SmallVector<Operation *> computeSelectedTopoSort(GraphOp graphOp) {
   DenseSet<Operation *> excludedOps;
 
   for (Operation &op : block) {
-    if (isa<YieldOp>(&op))
-      continue;
-
     bool anyResultNeeded = false;
     for (Value result : op.getResults()) {
       for (OpOperand &use : result.getUses()) {
@@ -576,14 +573,7 @@ SmallVector<Operation *> computeSelectedTopoSort(GraphOp graphOp) {
 
   computeTopologicalSorting(opsToSort, isOperandReady);
 
-  // Remove YieldOp from result
-  SmallVector<Operation *> result;
-  for (Operation *op : opsToSort) {
-    if (!isa<YieldOp>(op)) {
-      result.push_back(op);
-    }
-  }
-  return result;
+  return opsToSort;
 }
 
 } // namespace mlir::equivalence
