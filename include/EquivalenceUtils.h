@@ -4,6 +4,7 @@
 #include "EquivalenceDialect.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/StringRef.h"
 #include <cstdint>
@@ -37,6 +38,11 @@ void extractFromGraph(GraphOp graphOp);
 /// Inline a GraphOp by splicing its body into the parent block, replacing
 /// graph results with yielded values, and erasing the GraphOp.
 void inlineGraphOp(GraphOp graphOp);
+
+/// Compute topological sort of operations in a GraphOp, considering only
+/// operations selected by min_cost_index attributes on ClassOps.
+/// Returns the sorted operations (excluding YieldOp).
+SmallVector<Operation *> computeSelectedTopoSort(GraphOp graphOp);
 
 } // namespace mlir::equivalence
 

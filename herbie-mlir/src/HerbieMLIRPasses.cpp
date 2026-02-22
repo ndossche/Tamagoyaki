@@ -3,7 +3,6 @@
 #include "EquivalenceUtils.h"
 #include "HerbieMLIR.h"
 #include "HerbieMLIROpInterfaces.h"
-#include "HerbieUtils.h"
 #include "IntervalSearch.h"
 #include "LocalError.h"
 #include "mlir/Analysis/TopologicalSortUtils.h"
@@ -83,69 +82,6 @@ static double getConstantValue(::herbie::Constant constantEnum) {
     return M_2_PI;
   }
   llvm_unreachable("Unknown herbie constant");
-}
-
-SmallVector<Operation *> computeSelectedTopoSort(GraphOp graphOp) {
-  Block &block = graphOp.getBody().front();
-
-  DenseSet<Operation *> excludedOps;
-
-  for (Operation &op : block) {
-    if (isa<YieldOp>(&op))
-      continue;
-
-    bool anyResultNeeded = false;
-    for (Value result : op.getResults()) {
-      for (OpOperand &use : result.getUses()) {
-        Operation *user = use.getOwner();
-        auto classOp = dyn_cast<ClassOp>(user);
-        if (!classOp) {
-          anyResultNeeded = true;
-          break;
-        }
-        if (auto minCostAttr =
-                classOp->getAttrOfType<IntegerAttr>("min_cost_index")) {
-          int64_t minIdx = minCostAttr.getInt();
-          if (minIdx >= 0 &&
-              static_cast<size_t>(minIdx) < classOp.getInputs().size() &&
-              classOp.getInputs()[minIdx] == result) {
-            anyResultNeeded = true;
-            break;
-          }
-        } else {
-          anyResultNeeded = true;
-          break;
-        }
-      }
-      if (anyResultNeeded)
-        break;
-    }
-
-    if (!anyResultNeeded)
-      excludedOps.insert(&op);
-  }
-
-  SmallVector<Operation *> opsToSort;
-  for (Operation &op : block) {
-    if (!excludedOps.contains(&op))
-      opsToSort.push_back(&op);
-  }
-
-  auto isOperandReady = [&](Value value, Operation *) -> bool {
-    Operation *defOp = value.getDefiningOp();
-    return !defOp || excludedOps.contains(defOp);
-  };
-
-  computeTopologicalSorting(opsToSort, isOperandReady);
-
-  // Remove YieldOp from result
-  SmallVector<Operation *> result;
-  for (Operation *op : opsToSort) {
-    if (!isa<YieldOp>(op)) {
-      result.push_back(op);
-    }
-  }
-  return result;
 }
 
 namespace {
