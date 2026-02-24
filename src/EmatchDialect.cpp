@@ -131,12 +131,9 @@ void convertEmatchOpsToApplyRewrites(ModuleOp module) {
 /// Run equality saturation on the given IR module using the provided pattern
 /// module. The patternModule is consumed (removed from parent).
 /// Returns true on success.
-bool runSaturation(MLIRContext *ctx, ModuleOp patternModule, ModuleOp irModule,
-                   int maxIters) {
+bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
+                   ModuleOp irModule, int maxIters) {
   RewritePatternSet patternList(ctx);
-
-  patternModule.getOperation()->remove();
-  PDLPatternModule pdlPattern(patternModule);
 
   ClassOpUnionFind uf{};
   HashConsPatternRewriter hashconsRewriter(ctx);
@@ -301,7 +298,12 @@ struct EmatchSaturatePass
       return;
 
     convertEmatchOpsToApplyRewrites(patternModule);
-    runSaturation(module.getContext(), patternModule, irModule, maxIters);
+
+    patternModule.getOperation()->remove();
+    PDLPatternModule pdlPattern(patternModule);
+
+    runSaturation(module.getContext(), std::move(pdlPattern), irModule,
+                  maxIters);
 
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -345,7 +347,10 @@ struct EmatchSaturateBenchmarkPass
       OwningOpRef<ModuleOp> irClone = irModule.clone();
       OwningOpRef<ModuleOp> patternClone = patternModule.clone();
 
-      runSaturation(module.getContext(), patternClone.release(), irClone.get(),
+      patternClone.get().getOperation()->remove();
+      PDLPatternModule pdlPattern(patternClone.release());
+
+      runSaturation(module.getContext(), std::move(pdlPattern), irClone.get(),
                     maxIters);
 
       auto endTime = std::chrono::high_resolution_clock::now();

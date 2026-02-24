@@ -3,6 +3,7 @@
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/PatternMatch.h"
 
 namespace mlir::ematch {
 
@@ -12,11 +13,10 @@ namespace mlir::ematch {
 /// is replaced by a pdl_interp.apply_rewrite with the same name and signature.
 void convertEmatchOpsToApplyRewrites(ModuleOp module);
 
-/// Run equality saturation on the given IR module using the provided pattern
-/// module. The patternModule is consumed (removed from parent).
-/// Returns true on success.
-bool runSaturation(MLIRContext *ctx, ModuleOp patternModule, ModuleOp irModule,
-                   int maxIters);
+/// Run equality saturation on the given IR module using the provided PDL
+/// pattern module. Returns true on success.
+bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
+                   ModuleOp irModule, int maxIters);
 
 } // namespace mlir::ematch
 

@@ -407,8 +407,13 @@ public:
 
     // Run saturation
     mlir::ematch::convertEmatchOpsToApplyRewrites(patternModule);
+
+    patternModule.getOperation()->remove();
+    PDLPatternModule pdlPattern(patternModule);
+
     bool saturationSuccess = mlir::ematch::runSaturation(
-        irModule->getContext(), patternModule, irModule, maxSaturationIters);
+        irModule->getContext(), std::move(pdlPattern), irModule,
+        maxSaturationIters);
 
     if (!saturationSuccess) {
       llvm::errs() << "  Warning: Saturation returned false\n";
