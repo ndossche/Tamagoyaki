@@ -22,7 +22,7 @@ The `equivalence` dialect provides core operations for representing and manipula
 Example:
 
 ```mlir
-func.func @main(%a: i32) -> (i32, i32) {
+func.func @main(%a: i32) -> (i32) {
   %res = equivalence.graph -> (i32) {
     %one = arith.constant 1 : i32
     %two = arith.constant 2 : i32
