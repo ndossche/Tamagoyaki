@@ -85,6 +85,7 @@ namespace mlir::ematch {
 #define GEN_PASS_DEF_EMATCHSATURATEPASS
 #define GEN_PASS_DEF_EMATCHSATURATEBENCHMARKPASS
 #define GEN_PASS_DEF_CONVERTEMATCHTOPDLINTERPPASS
+#define GEN_PASS_DEF_APPLYPDLINTERPPASS
 #include "EmatchPasses.h.inc"
 
 namespace {
@@ -366,6 +367,38 @@ struct EmatchSaturateBenchmarkPass
     LLVM_DEBUG(llvm::dbgs()
                << "EmatchSaturateBenchmarkPass total: " << totalDuration.count()
                << " µs for " << numRuns << " runs\n");
+  }
+};
+
+struct ApplyPDLInterpPass
+    : public impl::ApplyPDLInterpPassBase<ApplyPDLInterpPass> {
+  using impl::ApplyPDLInterpPassBase<
+      ApplyPDLInterpPass>::ApplyPDLInterpPassBase;
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<mlir::pdl_interp::PDLInterpDialect>();
+  }
+
+  void runOnOperation() final {
+    ModuleOp module = getOperation();
+
+    ModuleOp patternModule = module.lookupSymbol<ModuleOp>(
+        StringAttr::get(module->getContext(), "patterns"));
+    ModuleOp irModule = module.lookupSymbol<ModuleOp>(
+        StringAttr::get(module->getContext(), "ir"));
+
+    if (!patternModule || !irModule)
+      return;
+
+    patternModule.getOperation()->remove();
+    PDLPatternModule pdlPattern(patternModule);
+
+    RewritePatternSet patternList(module->getContext());
+    patternList.add(std::move(pdlPattern));
+
+    if (failed(applyPatternsGreedily(irModule.getBodyRegion(),
+                                     std::move(patternList))))
+      signalPassFailure();
   }
 };
 

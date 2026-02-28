@@ -188,6 +188,15 @@ def EmatchSaturateBenchmarkPass : Pass<"ematch-saturate-benchmark", "::mlir::Mod
     ];
 }
 
+def ApplyPDLInterpPass : Pass<"ematch-apply-pdl-interp", "::mlir::ModuleOp"> {
+    let summary = "Apply pdl_interp patterns to the IR module using the greedy pattern rewrite driver.";
+    let description = [{
+        A debugging pass that applies pdl_interp patterns to the IR module using
+        MLIR's greedy pattern rewrite driver, similar to TestPDLByteCode in MLIR.
+    }];
+    let dependentDialects = ["::mlir::ematch::EmatchDialect"];
+}
+
 def ConvertEmatchToPDLInterpPass : Pass<"convert-ematch-to-pdl-interp", "::mlir::ModuleOp"> {
     let summary = "Convert ematch operations to pdl_interp apply_rewrite operations.";
     let description = [{
