@@ -23,12 +23,14 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <math.h>
 #include <mpfr.h>
 #include <optional>
 #include <rival.h>
