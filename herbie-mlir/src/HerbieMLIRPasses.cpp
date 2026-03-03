@@ -23,6 +23,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -37,6 +38,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#define DEBUG_TYPE "herbie"
 
 namespace herbie {
 
@@ -354,14 +357,12 @@ public:
     intervalConfig.maxRivalPrecision = maxRivalPrecision;
     intervalConfig.maxRivalIterations = maxRivalIterations;
 
-    // Create a shared rival arena for all functions
     RivalExprArena *arena = rival_expr_arena_new();
     if (!arena) {
       llvm::errs() << "Failed to create rival expression arena\n";
       return signalPassFailure();
     }
 
-    // Shared state for rival compilation across all functions
     DenseMap<Value, uint32_t> valueToExpr;
     DenseMap<Value, size_t> valueToRootIdx;
     std::vector<std::string> varNameStorage;
@@ -369,6 +370,7 @@ public:
     SmallVector<FunctionIntervalResult> intervalResults;
     SmallVector<SmallVector<Operation *>> allSortedOps;
 
+    // Step 1: Run interval search and insert equivalence graphs
     irModule.walk([&](mlir::func::FuncOp funcOp) {
       auto &intervalResult = intervalResults.emplace_back(
           runIntervalSearchOnFunction(funcOp, intervalConfig));
@@ -376,23 +378,20 @@ public:
       if (!intervalResult.success) {
         funcOp.emitWarning() << "Interval search failed, continuing anyway";
       } else {
-        llvm::errs() << "  Found "
-                     << intervalResult.searchResult.sampleableRegions.size()
-                     << " sampleable regions\n";
-        llvm::errs() << "  Valid fraction: "
-                     << intervalResult.searchResult.statistics.validFraction
-                     << "\n";
+        LLVM_DEBUG({
+          llvm::dbgs() << "Interval search for " << funcOp.getName() << ": "
+                       << intervalResult.searchResult.sampleableRegions.size()
+                       << " sampleable regions, valid fraction: "
+                       << intervalResult.searchResult.statistics.validFraction
+                       << "\n";
+        });
       }
-
-      llvm::errs() << "Step 2: Inserting equivalence graph...\n";
 
       if (mlir::failed(mlir::equivalence::insertGraphInFunction(
               funcOp, /*insertSingleElementEqs=*/false))) {
         funcOp.emitError() << "Failed to insert equivalence graph";
         return signalPassFailure();
       }
-
-      llvm::errs() << "  Graph inserted successfully\n";
 
       // Map function arguments to rival variables and register as roots
       for (auto [i, arg] : llvm::enumerate(funcOp.getArguments())) {
@@ -407,7 +406,7 @@ public:
       }
     });
 
-    // Run saturation
+    // Step 2: Run equality saturation
     mlir::ematch::convertEmatchOpsToApplyRewrites(patternModule);
 
     patternModule.getOperation()->remove();
@@ -418,9 +417,7 @@ public:
         maxSaturationIters);
 
     if (!saturationSuccess) {
-      llvm::errs() << "  Warning: Saturation returned false\n";
-    } else {
-      llvm::errs() << "  Saturation completed\n";
+      LLVM_DEBUG(llvm::dbgs() << "Warning: Saturation returned false\n");
     }
 
     // Lower herbie sound ops introduced during saturation
@@ -433,25 +430,24 @@ public:
       (void)applyPatternsGreedily(irModule, std::move(patterns), config);
     }
 
-    // select greedily:
+    // Step 3: Initial greedy selection
     irModule.walk(
         [&](GraphOp graphOp) { selectGreedy(graphOp, 1, "herbie.cost"); });
 
     // Step 4: Compile selected operations to rival expressions in
     // topological order, then build the rival machine
-    llvm::errs() << "Step 4: Computing topological sort and compiling to "
-                    "rival expressions...\n";
-
     irModule.walk([&](mlir::equivalence::GraphOp graphOp) {
       auto sortedOps = computeSelectedTopoSort(graphOp);
 
-      llvm::errs() << "  Topological order (" << sortedOps.size()
-                   << " operations):\n";
-      for (mlir::Operation *op : sortedOps) {
-        llvm::errs() << "    ";
-        op->print(llvm::errs(), mlir::OpPrintingFlags().skipRegions());
-        llvm::errs() << "\n";
-      }
+      LLVM_DEBUG({
+        llvm::dbgs() << "Topological order (" << sortedOps.size()
+                     << " operations):\n";
+        for (mlir::Operation *op : sortedOps) {
+          llvm::dbgs() << "  ";
+          op->print(llvm::dbgs(), mlir::OpPrintingFlags().skipRegions());
+          llvm::dbgs() << "\n";
+        }
+      });
 
       // Compile each operation in topological order so that operand
       // expressions are already present in valueToExpr when needed.
@@ -467,13 +463,14 @@ public:
             valueToRootIdx[eclass.getResult()] =
                 valueToRootIdx[selectedOperand];
           }
-
           continue;
         }
+
         auto iface = dyn_cast<RivalCompileableInterface>(op);
         if (!iface) {
-          llvm::errs() << "  Skipping op without RivalCompileableInterface: "
-                       << op->getName() << "\n";
+          LLVM_DEBUG(llvm::dbgs()
+                     << "Skipping op without RivalCompileableInterface: "
+                     << op->getName() << "\n");
           continue;
         }
 
@@ -508,9 +505,6 @@ public:
 
         for (Value result : op.getResults()) {
           if (!valueToRootIdx.contains(result)) {
-            // This result was not compiled into its own rival root.
-            // Find the equivalence.class that consumes it and reuse
-            // that class's ground-truth value.
             bool mapped = false;
             for (OpOperand &use : result.getUses()) {
               if (auto classOp = dyn_cast<ClassOp>(use.getOwner())) {
@@ -532,15 +526,16 @@ public:
       allSortedOps.push_back(std::move(allOps));
     });
 
-    // Build the rival machine from all collected roots and variables
+    // Step 5: Build the rival machine from all collected roots and variables
     std::vector<const char *> varNamePtrs;
     varNamePtrs.reserve(varNameStorage.size());
     for (auto &name : varNameStorage) {
       varNamePtrs.push_back(name.c_str());
     }
 
-    llvm::errs() << "Step 5: Building rival machine (" << roots.size()
-                 << " roots, " << varNamePtrs.size() << " variables)...\n";
+    LLVM_DEBUG(llvm::dbgs()
+               << "Building rival machine (" << roots.size() << " roots, "
+               << varNamePtrs.size() << " variables)\n");
 
     RivalDiscretization *disc = rival_disc_f64(analysisPrecision);
     RivalMachine *machine = rival_machine_new(
@@ -554,12 +549,10 @@ public:
       return signalPassFailure();
     }
 
-    llvm::errs() << "  Rival machine constructed successfully\n";
-
-    llvm::errs() << "Step 6: Sampling points and evaluating...\n";
-
+    // Step 6: Sample points and evaluate
     if (intervalResults.empty() || !intervalResults[0].success) {
-      llvm::errs() << "  No valid interval result; skipping sampling.\n";
+      LLVM_DEBUG(llvm::dbgs() << "No valid interval result; skipping sampling "
+                                 "and error analysis\n");
     } else {
       auto &intervalResult = intervalResults[0];
 
@@ -568,12 +561,11 @@ public:
           roots.size(), /*numSamples=*/256, /*evalMaxIterations=*/100,
           /*evalMaxPrecision=*/2000, analysisPrecision);
 
-      llvm::errs() << "  Sampled " << samplingResult.sampled << " / 256 points"
-                   << " (skipped " << samplingResult.skipped << ")\n";
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Sampled " << samplingResult.sampled << " / 256 points"
+                 << " (skipped " << samplingResult.skipped << ")\n");
 
       // Step 7: Compute local error for each operation
-      llvm::errs() << "Step 7: Computing local errors...\n";
-
       DenseMap<Operation *, double> opSumDistances;
 
       for (auto &sortedOps : allSortedOps) {
@@ -586,21 +578,21 @@ public:
 
           opSumDistances[errInfo.op] = errInfo.sumUlp;
 
-          llvm::errs() << "  ";
-          errInfo.op->print(llvm::errs(),
-                            mlir::OpPrintingFlags().skipRegions());
-          llvm::errs() << "\n    max_ulp=" << errInfo.maxUlp
-                       << " mean_ulp=" << errInfo.meanUlp()
-                       << " samples=" << errInfo.count;
-          if (errInfo.foldFailures > 0)
-            llvm::errs() << " fold_failures=" << errInfo.foldFailures;
-          llvm::errs() << "\n";
+          LLVM_DEBUG({
+            llvm::dbgs() << "  ";
+            errInfo.op->print(llvm::dbgs(),
+                              mlir::OpPrintingFlags().skipRegions());
+            llvm::dbgs() << "\n    max_ulp=" << errInfo.maxUlp
+                         << " mean_ulp=" << errInfo.meanUlp()
+                         << " samples=" << errInfo.count;
+            if (errInfo.foldFailures > 0)
+              llvm::dbgs() << " fold_failures=" << errInfo.foldFailures;
+            llvm::dbgs() << "\n";
+          });
         }
       }
 
       // Step 8: Re-select with error-based costs, extract, and inline
-      llvm::errs() << "Step 8: Setting error-based costs and re-selecting...\n";
-
       irModule.walk([&](GraphOp graphOp) {
         clearSelection(graphOp, "equivalence.cost");
 
@@ -615,9 +607,11 @@ public:
                 1;
             op->setAttr("equivalence.cost",
                         CostAttr::get(op->getContext(), cost));
-            llvm::errs() << "  cost=" << cost << " for ";
-            op->print(llvm::errs(), mlir::OpPrintingFlags().skipRegions());
-            llvm::errs() << "\n";
+            LLVM_DEBUG({
+              llvm::dbgs() << "cost=" << cost << " for ";
+              op->print(llvm::dbgs(), mlir::OpPrintingFlags().skipRegions());
+              llvm::dbgs() << "\n";
+            });
           }
         });
 
@@ -625,15 +619,11 @@ public:
         extractFromGraph(graphOp);
         inlineGraphOp(graphOp);
       });
-
-      llvm::errs() << "  Extraction and inlining complete\n";
     }
 
     rival_machine_free(machine);
     rival_disc_free(disc);
     rival_expr_arena_free(arena);
-
-    llvm::errs() << "=== End Herbie Optimize ===\n";
   }
 };
 
@@ -658,17 +648,14 @@ public:
 // ===----------------------------------------------------------------------===
 // // LowerHerbieConstantPass
 // ===----------------------------------------------------------------------===
-// //
 
 struct LowerHerbieConstantPattern : public OpRewritePattern<ConstantOp> {
   using OpRewritePattern<ConstantOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(ConstantOp herbieConstOp,
                                 PatternRewriter &rewriter) const final {
-    // Get the constant value from the symbol
     double value = getConstantValue(herbieConstOp.getSymbol());
 
-    // Create an arith.constant with the same type and value
     auto resultType = herbieConstOp.getResult().getType();
     auto floatAttr = rewriter.getFloatAttr(resultType, value);
 
