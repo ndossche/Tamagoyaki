@@ -526,7 +526,7 @@ public:
       allSortedOps.push_back(std::move(allOps));
     });
 
-    // Step 5: Build the rival machine from all collected roots and variables
+    // Step 5: Build variable name pointers for rival
     std::vector<const char *> varNamePtrs;
     varNamePtrs.reserve(varNameStorage.size());
     for (auto &name : varNameStorage) {
@@ -534,22 +534,12 @@ public:
     }
 
     LLVM_DEBUG(llvm::dbgs()
-               << "Building rival machine (" << roots.size() << " roots, "
-               << varNamePtrs.size() << " variables)\n");
+               << "Preparing per-root evaluation (" << roots.size()
+               << " roots, " << varNamePtrs.size() << " variables)\n");
 
     RivalDiscretization *disc = rival_disc_f64(analysisPrecision);
-    RivalMachine *machine = rival_machine_new(
-        arena, roots.data(), roots.size(), varNamePtrs.data(),
-        varNamePtrs.size(), disc, maxRivalPrecision, maxRivalIterations);
 
-    if (!machine) {
-      llvm::errs() << "Failed to create rival machine\n";
-      rival_disc_free(disc);
-      rival_expr_arena_free(arena);
-      return signalPassFailure();
-    }
-
-    // Step 6: Sample points and evaluate
+    // Step 6: Sample points and evaluate per-root
     if (intervalResults.empty() || !intervalResults[0].success) {
       LLVM_DEBUG(llvm::dbgs() << "No valid interval result; skipping sampling "
                                  "and error analysis\n");
@@ -557,8 +547,9 @@ public:
       auto &intervalResult = intervalResults[0];
 
       SamplingResult samplingResult = sampleAndEvaluate(
-          machine, intervalResult.searchResult, intervalResult.floatBitWidths,
-          roots.size(), /*numSamples=*/256, /*evalMaxIterations=*/100,
+          arena, roots, varNamePtrs, disc, intervalResult.searchResult,
+          intervalResult.floatBitWidths, /*numSamples=*/256,
+          /*evalMaxIterations=*/100,
           /*evalMaxPrecision=*/2000, analysisPrecision);
 
       LLVM_DEBUG(llvm::dbgs()
@@ -621,7 +612,6 @@ public:
       });
     }
 
-    rival_machine_free(machine);
     rival_disc_free(disc);
     rival_expr_arena_free(arena);
   }
