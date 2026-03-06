@@ -404,11 +404,12 @@ public:
               rival_expr_var(arena, varNameStorage.back().c_str());
           valueToExpr[arg] = varExpr;
 
-        size_t idx = roots.size();
-        roots.push_back(varExpr);
-        valueToRootIdx[arg] = idx;
-      }
-    });
+          size_t idx = roots.size();
+          roots.push_back(varExpr);
+          valueToRootIdx[arg] = idx;
+        }
+      });
+    }
 
     // Step 2: Run equality saturation
     {
