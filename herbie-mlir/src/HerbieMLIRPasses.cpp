@@ -1,3 +1,4 @@
+#include "EmatchDialect.h"
 #include "EmatchUtils.h"
 #include "EquivalenceDialect.h"
 #include "EquivalenceUtils.h"
@@ -19,6 +20,7 @@
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Parser/Parser.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -334,23 +336,33 @@ public:
   using impl::HerbieOptimizePassBase<
       HerbieOptimizePass>::HerbieOptimizePassBase;
 
-  void getDependentDialects(mlir::DialectRegistry &registry) const override {
-    registry.insert<mlir::equivalence::EquivalenceDialect>();
-    registry.insert<mlir::func::FuncDialect>();
-    registry.insert<mlir::pdl_interp::PDLInterpDialect>();
-  }
-
   void runOnOperation() final {
     TAMAGOYAKI_SCOPED_TIMER("HerbieOptimizePass");
     mlir::ModuleOp module = getOperation();
 
-    ModuleOp patternModule = module.lookupSymbol<ModuleOp>(
-        StringAttr::get(module->getContext(), "patterns"));
-    ModuleOp irModule = module.lookupSymbol<ModuleOp>(
-        StringAttr::get(module->getContext(), "ir"));
+    ModuleOp patternsModule;
+    ModuleOp irModule;
+    OwningOpRef<ModuleOp> parsedPatternsModule;
 
-    if (!patternModule || !irModule)
-      return;
+    if (!patternsFile.empty()) {
+      irModule = module;
+      parsedPatternsModule =
+          parseSourceFile<ModuleOp>(patternsFile, module.getContext());
+      if (!parsedPatternsModule) {
+        emitError(module.getLoc())
+            << "failed to parse patterns file: " << patternsFile;
+        return signalPassFailure();
+      }
+      patternsModule = parsedPatternsModule.release();
+    } else {
+      patternsModule = module.lookupSymbol<ModuleOp>(
+          StringAttr::get(module->getContext(), "patterns"));
+      irModule = module.lookupSymbol<ModuleOp>(
+          StringAttr::get(module->getContext(), "ir"));
+
+      if (!patternsModule || !irModule)
+        return;
+    }
 
     IntervalSearchConfig intervalConfig;
     intervalConfig.maxSearchDepth = maxSearchDepth;
@@ -412,10 +424,10 @@ public:
     }
 
     // Step 2: Run equality saturation
-    mlir::ematch::convertEmatchOpsToApplyRewrites(patternModule);
+    mlir::ematch::convertEmatchOpsToApplyRewrites(patternsModule);
 
-    patternModule.getOperation()->remove();
-    PDLPatternModule pdlPattern(patternModule);
+    patternsModule.getOperation()->remove();
+    PDLPatternModule pdlPattern(patternsModule);
 
     bool saturationSuccess = mlir::ematch::runSaturation(
         irModule->getContext(), std::move(pdlPattern), irModule,
