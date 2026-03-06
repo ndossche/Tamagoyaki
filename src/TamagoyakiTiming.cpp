@@ -1,8 +1,10 @@
 #include "TamagoyakiTiming.h"
 
 #include "mlir/Support/Timing.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/Signposts.h"
 
 using namespace mlir;
 
@@ -23,6 +25,9 @@ bool initialized = false;
 
 /// Stack of active scopes so that getTimingScope nests under the innermost.
 thread_local llvm::SmallVector<TimingScope *, 8> scopeStack;
+
+/// Global signpost emitter for os_signpost instrumentation (Instruments.app).
+llvm::ManagedStatic<llvm::SignpostEmitter> signposts;
 
 /// Lazily initialize the timing manager. Safe to call multiple times.
 void ensureInitialized() {
@@ -70,4 +75,12 @@ void tamagoyaki::pushTimingScope(mlir::TimingScope &scope) {
 void tamagoyaki::popTimingScope() {
   if (!scopeStack.empty())
     scopeStack.pop_back();
+}
+
+tamagoyaki::SignpostGuard::SignpostGuard(llvm::StringRef name) : name(name) {
+  signposts->startInterval(this, name);
+}
+
+tamagoyaki::SignpostGuard::~SignpostGuard() {
+  signposts->endInterval(this, name);
 }

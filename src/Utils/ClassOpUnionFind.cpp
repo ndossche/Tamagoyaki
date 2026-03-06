@@ -9,6 +9,7 @@
 
 #include "Utils/ClassOpUnionFind.h"
 #include "EquivalenceDialect.h"
+#include "TamagoyakiTiming.h"
 #include "Utils/HashConsPatternRewriter.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
@@ -166,6 +167,7 @@ equivalence::ClassOp ClassOpUnionFind::findLeader(equivalence::ClassOp c) {
 }
 
 bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
+  TAMAGOYAKI_SCOPED_TIMER("rebuild");
   LLVM_DEBUG({
     llvm::dbgs() << "Starting rebuild. Worklist contains " << worklist.size()
                  << " classes\n";

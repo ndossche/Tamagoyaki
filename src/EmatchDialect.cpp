@@ -37,6 +37,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <chrono>
+#include <string>
 #include <utility>
 
 #define DEBUG_TYPE "ematch"
@@ -210,7 +211,8 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
 
   int nIters = 0;
 
-  do {
+  while (true) {
+    TAMAGOYAKI_SCOPED_TIMER("iteration " + std::to_string(nIters + 1));
     LLVM_DEBUG({
       irModule.walk([&](equivalence::GraphOp graph) {
         int classes = 0;
@@ -242,28 +244,38 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
 
     bytecode->initializeMutableState(bytecodeState);
 
-    irModule.walk([&](Operation *op) {
-      auto dialect = op->getDialect();
-      if (dialect != nullptr &&
-          isa<equivalence::EquivalenceDialect>(op->getDialect()))
-        return;
+    {
+      TAMAGOYAKI_SCOPED_TIMER("match");
+      irModule.walk([&](Operation *op) {
+        auto dialect = op->getDialect();
+        if (dialect != nullptr &&
+            isa<equivalence::EquivalenceDialect>(op->getDialect()))
+          return;
 
-      SmallVector<mlir::detail::PDLByteCode::MatchResult, 4> opMatches;
+        SmallVector<mlir::detail::PDLByteCode::MatchResult, 4> opMatches;
 
-      bytecode->match(op, hashconsRewriter, opMatches, bytecodeState);
+        bytecode->match(op, hashconsRewriter, opMatches, bytecodeState);
 
-      for (auto &match : opMatches) {
-        allMatches.push_back({op, std::move(match)});
-      }
-    });
-
-    for (const auto &pm : allMatches) {
-      hashconsRewriter.setInsertionPoint(pm.op);
-      (void)bytecode->rewrite(hashconsRewriter, pm.matchResult, bytecodeState);
+        for (auto &match : opMatches) {
+          allMatches.push_back({op, std::move(match)});
+        }
+      });
     }
-    allMatches.clear();
-    bytecodeState.cleanupAfterMatchAndRewrite();
-  } while (uf.rebuild(hashconsRewriter));
+    {
+      TAMAGOYAKI_SCOPED_TIMER("rewrite");
+      for (const auto &pm : allMatches) {
+        hashconsRewriter.setInsertionPoint(pm.op);
+        (void)bytecode->rewrite(hashconsRewriter, pm.matchResult,
+                                bytecodeState);
+      }
+      allMatches.clear();
+      bytecodeState.cleanupAfterMatchAndRewrite();
+    }
+    bool didRebuild = uf.rebuild(hashconsRewriter);
+    if (!didRebuild) {
+      break;
+    }
+  }
 
   return true;
 }

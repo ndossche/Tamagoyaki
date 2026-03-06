@@ -3,6 +3,7 @@
 
 #include "mlir/Support/Timing.h"
 #include "llvm/ADT/StringRef.h"
+#include <string>
 
 namespace tamagoyaki {
 
@@ -39,16 +40,28 @@ struct TimingScopeGuard {
   TimingScopeGuard &operator=(const TimingScopeGuard &) = delete;
 };
 
+/// RAII guard that emits os_signpost intervals (visible in Instruments.app).
+/// No-op on non-Apple platforms or when Instruments is not recording.
+struct SignpostGuard {
+  std::string name;
+  explicit SignpostGuard(llvm::StringRef name);
+  ~SignpostGuard();
+  SignpostGuard(const SignpostGuard &) = delete;
+  SignpostGuard &operator=(const SignpostGuard &) = delete;
+};
+
 } // namespace tamagoyaki
 
 /// Convenience macro: create a TimingScope for the current block and push it
 /// so that any nested TAMAGOYAKI_SCOPED_TIMER calls become children.
+/// Also emits an os_signpost interval for Instruments.app profiling.
 #define TAMAGOYAKI_CONCAT_(a, b) a##b
 #define TAMAGOYAKI_CONCAT(a, b) TAMAGOYAKI_CONCAT_(a, b)
 #define TAMAGOYAKI_SCOPED_TIMER(name)                                          \
   auto TAMAGOYAKI_CONCAT(_tamagoyakiTS, __LINE__) =                            \
       tamagoyaki::getTimingScope(name);                                        \
   tamagoyaki::TimingScopeGuard TAMAGOYAKI_CONCAT(_tamagoyakiTG, __LINE__)(     \
-      TAMAGOYAKI_CONCAT(_tamagoyakiTS, __LINE__))
+      TAMAGOYAKI_CONCAT(_tamagoyakiTS, __LINE__));                             \
+  tamagoyaki::SignpostGuard TAMAGOYAKI_CONCAT(_tamagoyakiSP, __LINE__)(name)
 
 #endif // TAMAGOYAKI_TIMING_H
