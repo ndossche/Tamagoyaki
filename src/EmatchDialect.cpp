@@ -181,14 +181,17 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
   pdlPattern.registerRewriteFunction(
       "dedup", [&hashconsRewriter](PatternRewriter &rewriter, Operation *op) {
         if (Operation *existing = hashconsRewriter.lookup(op)) {
-          LLVM_DEBUG(llvm::dbgs()
-                     << "deduplicating operation: " << *op << "\n");
+          DEBUG_WITH_TYPE("hashcons", llvm::dbgs()
+                                          << "deduplicating operation: " << *op
+                                          << "\n");
           assert(existing != op);
           rewriter.eraseOp(op);
           return existing;
         }
-        LLVM_DEBUG(llvm::dbgs()
-                   << "no duplicate, inserting into hashcons: " << *op << "\n");
+        DEBUG_WITH_TYPE("hashcons",
+                        llvm::dbgs()
+                            << "no duplicate, inserting into hashcons: " << *op
+                            << "\n");
         (void)hashconsRewriter.insert(op);
         return op;
       });
@@ -239,7 +242,6 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
 
     bytecode->initializeMutableState(bytecodeState);
 
-    int i = 0;
     irModule.walk([&](Operation *op) {
       auto dialect = op->getDialect();
       if (dialect != nullptr &&
@@ -252,21 +254,11 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
 
       for (auto &match : opMatches) {
         allMatches.push_back({op, std::move(match)});
-
-        i += 1;
-        LLVM_DEBUG({
-          llvm::dbgs() << "Recording rewrite " << i << " at root " << *op
-                       << "\n";
-        });
       }
     });
 
-    i = 0;
     for (const auto &pm : allMatches) {
       hashconsRewriter.setInsertionPoint(pm.op);
-      i += 1;
-      LLVM_DEBUG({ llvm::dbgs() << "Applying rewrite " << i << "\n"; });
-
       (void)bytecode->rewrite(hashconsRewriter, pm.matchResult, bytecodeState);
     }
     allMatches.clear();
