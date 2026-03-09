@@ -172,6 +172,10 @@ def RoverExtractPass : Pass<"rover-extract", "::mlir::ModuleOp"> {
     // "::hw::HWDialect",
     "::comb::CombDialect"
   ];
+    let options = [
+    Option<"extractDelay", "delay", "bool", "false",
+           "Extract based on delay else use area.">,
+  ];
 }
 
 #endif // COMB_MLIR_DIALECT

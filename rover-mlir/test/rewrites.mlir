@@ -1,29 +1,29 @@
-// pdl.pattern @MulShlToShlMul : benefit(1) {
-//   %type = pdl.type
+pdl.pattern @MulShlToShlMul : benefit(1) {
+  %type = pdl.type
 
-//   %a = pdl.operand : %type
-//   %b = pdl.operand : %type
-//   %s = pdl.operand
+  %a = pdl.operand : %type
+  %b = pdl.operand : %type
+  %s = pdl.operand
 
-//   %mul = pdl.operation "comb.mul"(%a, %b : !pdl.value, !pdl.value)
-//            -> (%type : !pdl.type)
+  %mul = pdl.operation "comb.mul"(%a, %b : !pdl.value, !pdl.value)
+           -> (%type : !pdl.type)
 
-//   %mulResult = pdl.result 0 of %mul
+  %mulResult = pdl.result 0 of %mul
 
-//   %shl = pdl.operation "comb.shl"(%mulResult, %s : !pdl.value, !pdl.value)
-//            -> (%type : !pdl.type)
+  %shl = pdl.operation "comb.shl"(%mulResult, %s : !pdl.value, !pdl.value)
+           -> (%type : !pdl.type)
 
-//   pdl.rewrite %shl {
-//     %newShl = pdl.operation "comb.shl"(%a, %s : !pdl.value, !pdl.value)
-//                 -> (%type : !pdl.type)
-//     %newShlResult = pdl.result 0 of %newShl
+  pdl.rewrite %shl {
+    %newShl = pdl.operation "comb.shl"(%a, %s : !pdl.value, !pdl.value)
+                -> (%type : !pdl.type)
+    %newShlResult = pdl.result 0 of %newShl
 
-//     %newMul = pdl.operation "comb.mul"(%newShlResult, %b : !pdl.value, !pdl.value)
-//                 -> (%type : !pdl.type)
+    %newMul = pdl.operation "comb.mul"(%newShlResult, %b : !pdl.value, !pdl.value)
+                -> (%type : !pdl.type)
 
-//     pdl.replace %shl with %newMul
-//   }
-// }
+    pdl.replace %shl with %newMul
+  }
+}
 
 pdl.pattern @AddShlToShlAdd : benefit(1) {
   %type      = pdl.type

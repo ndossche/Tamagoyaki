@@ -216,7 +216,7 @@ public:
                   auto addDelay = ceilLog2(addArea);
                   (void)addDelay;
                   // return std::pair{addArea, addDelay};
-                  return std::pair{1000, 1000};
+                  return std::pair{10000, 1000};
                 })
                 .Case<comb::MulOp>([](comb::MulOp mulOp) {
                   // Multiplier cost = width(lhs) * width(rhs)
@@ -236,8 +236,7 @@ public:
                 .Case<datapath::PartialProductOp>(
                     [](datapath::PartialProductOp ppOp) {
                       // Partial product cost = width(lhs) * width(rhs)
-                      // return getBinaryOpCost(ppOp.getLhs(), ppOp.getRhs());
-                      // Delay is small
+                      // Delay is single gate
                       return std::pair{
                           getBinaryOpCost(ppOp.getLhs(), ppOp.getRhs()) /
                               ppOp.getNumResults(),
@@ -252,15 +251,25 @@ public:
                             operand.getType().getIntOrFloatBitWidth();
 
                       auto numOps = compressOp.getNumOperands();
+                      auto numRes = compressOp.getNumResults();
 
-                      return std::pair{compressCost / numOps, ceilLog2(numOps)};
+                      return std::pair{compressCost / numRes, ceilLog2(numOps)};
                     })
                 .Default([](auto) { return std::pair{0, 1}; });
 
-        op->setAttr("equivalence.cost", CostAttr::get(op->getContext(), area));
+        if (extractDelay)
+          op->setAttr("equivalence.cost",
+                      CostAttr::get(op->getContext(), delay));
+        else
+          op->setAttr("equivalence.cost",
+                      CostAttr::get(op->getContext(), area));
       });
 
-      selectGreedy(graphOp, /*defaultCost=*/-1, "equivalence.cost");
+      if (extractDelay)
+        selectGreedy(graphOp, /*defaultCost=*/-1, "equivalence.cost",
+                     costReductionMax);
+      else
+        selectGreedy(graphOp, /*defaultCost=*/-1, "equivalence.cost");
       llvm::errs() << "=== IR After Costing ===\n";
       irModule.print(llvm::errs());
       llvm::errs() << "\n";
