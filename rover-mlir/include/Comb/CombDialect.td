@@ -141,6 +141,7 @@ def RoverSaturatePass : Pass<"rover-saturate", "::mlir::ModuleOp"> {
     "::mlir::func::FuncDialect",
     "::mlir::arith::ArithDialect",
     "::mlir::equivalence::EquivalenceDialect",
+    "::mlir::ematch::EmatchDialect",
     "::mlir::pdl_interp::PDLInterpDialect",
     "::datapath::DatapathDialect",
     // "::hw::HWDialect",

@@ -1,5 +1,6 @@
 #include "Comb.h"
 #include "Datapath/Datapath.h"
+#include "EmatchDialect.h"
 #include "EmatchUtils.h"
 #include "EquivalenceDialect.h"
 #include "EquivalenceUtils.h"
