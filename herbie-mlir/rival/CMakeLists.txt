@@ -1,3 +1,8 @@
+# Set the policy or use the option only when available
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+    cmake_policy(SET CMP0135 NEW)
+endif()
+
 # rival-rs C API integration
 # Pulls Rival from GitHub and builds the C API library
 # Also builds GMP and MPFR from source for portable builds
@@ -22,7 +27,6 @@ set(DEPS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/deps-build")
 ExternalProject_Add(gmp_external
     URL ${GMP_URL}
     URL_HASH SHA256=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     PREFIX ${DEPS_BUILD_DIR}/gmp
     INSTALL_DIR ${DEPS_INSTALL_DIR}
     CONFIGURE_COMMAND <SOURCE_DIR>/configure
