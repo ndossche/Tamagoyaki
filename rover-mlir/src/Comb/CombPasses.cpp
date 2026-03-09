@@ -130,13 +130,6 @@ class RoverSaturatePass
 public:
   using impl::RoverSaturatePassBase<RoverSaturatePass>::RoverSaturatePassBase;
 
-  void getDependentDialects(mlir::DialectRegistry &registry) const override {
-    registry.insert<mlir::equivalence::EquivalenceDialect>();
-    registry.insert<mlir::func::FuncDialect>();
-    registry.insert<mlir::pdl_interp::PDLInterpDialect>();
-    registry.insert<datapath::DatapathDialect>();
-  }
-
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
 
@@ -193,13 +186,6 @@ public:
 class RoverExtractPass : public impl::RoverExtractPassBase<RoverExtractPass> {
 public:
   using impl::RoverExtractPassBase<RoverExtractPass>::RoverExtractPassBase;
-
-  void getDependentDialects(mlir::DialectRegistry &registry) const override {
-    registry.insert<mlir::equivalence::EquivalenceDialect>();
-    registry.insert<mlir::func::FuncDialect>();
-    registry.insert<mlir::pdl_interp::PDLInterpDialect>();
-    registry.insert<datapath::DatapathDialect>();
-  }
 
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();

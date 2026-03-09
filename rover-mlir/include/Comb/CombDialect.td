@@ -142,6 +142,7 @@ def RoverSaturatePass : Pass<"rover-saturate", "::mlir::ModuleOp"> {
     "::mlir::arith::ArithDialect",
     "::mlir::equivalence::EquivalenceDialect",
     "::mlir::pdl_interp::PDLInterpDialect",
+    "::datapath::DatapathDialect",
     // "::hw::HWDialect",
     "::comb::CombDialect"
   ];
@@ -167,6 +168,7 @@ def RoverExtractPass : Pass<"rover-extract", "::mlir::ModuleOp"> {
     "::mlir::arith::ArithDialect",
     "::mlir::equivalence::EquivalenceDialect",
     "::mlir::pdl_interp::PDLInterpDialect",
+    "::datapath::DatapathDialect",
     // "::hw::HWDialect",
     "::comb::CombDialect"
   ];
