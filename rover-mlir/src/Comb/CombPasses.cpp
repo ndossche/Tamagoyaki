@@ -4,35 +4,30 @@
 #include "EquivalenceDialect.h"
 #include "EquivalenceUtils.h"
 #include "HW/HW.h"
-#include "mlir/Analysis/TopologicalSortUtils.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
+#include "mlir/IR/ValueRange.h"
+#include "mlir/Parser/Parser.h"
 #include "mlir/Support/LLVM.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
-#include <cmath>
 #include <cstddef>
-#include <cstdint>
 #include <optional>
-#include <string>
 #include <utility>
-#include <vector>
 
 namespace comb {
 
@@ -44,7 +39,6 @@ using namespace mlir;
 using namespace mlir::equivalence;
 
 #include <cassert>
-#include <cstdint>
 
 static unsigned ceilLog2(unsigned v) {
   assert(v > 0 && "undefined for zero");
@@ -146,13 +140,30 @@ public:
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
 
-    ModuleOp patternModule = module.lookupSymbol<ModuleOp>(
-        StringAttr::get(module->getContext(), "patterns"));
-    ModuleOp irModule = module.lookupSymbol<ModuleOp>(
-        StringAttr::get(module->getContext(), "ir"));
+    ModuleOp patternModule;
+    ModuleOp irModule;
+    OwningOpRef<ModuleOp> parsedPatternsModule;
 
-    if (!patternModule || !irModule)
-      return;
+    if (!patternsFile.empty()) {
+      // Parse patterns from external file; the input module is the IR module.
+      irModule = module;
+      parsedPatternsModule =
+          parseSourceFile<ModuleOp>(patternsFile, module.getContext());
+      if (!parsedPatternsModule) {
+        emitError(module.getLoc())
+            << "failed to parse patterns file: " << patternsFile;
+        return signalPassFailure();
+      }
+      patternModule = parsedPatternsModule.release();
+    } else {
+      patternModule = module.lookupSymbol<ModuleOp>(
+          StringAttr::get(module->getContext(), "patterns"));
+      irModule = module.lookupSymbol<ModuleOp>(
+          StringAttr::get(module->getContext(), "ir"));
+
+      if (!patternModule || !irModule)
+        return;
+    }
 
     irModule.walk([&](mlir::func::FuncOp funcOp) {
       if (mlir::failed(mlir::equivalence::insertGraphInFunction(
@@ -171,13 +182,11 @@ public:
                                        rewriterBuildPartialProduct);
     pdlPattern.registerRewriteFunction("BuildCompress", rewriterBuildCompress);
     bool saturationSuccess = mlir::ematch::runSaturation(
-        irModule->getContext(), std::move(pdlPattern), irModule, 3);
+        irModule->getContext(), std::move(pdlPattern), irModule, maxIters);
 
     if (!saturationSuccess) {
       llvm::errs() << "  Warning: Saturation returned false\n";
     }
-
-    return;
   }
 };
 
