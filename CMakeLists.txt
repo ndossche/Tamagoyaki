@@ -49,6 +49,12 @@ if(BUILD_HERBIE_MLIR)
   add_subdirectory(herbie-mlir)
 endif()
 
+# rover-mlir subproject (optional, can be disabled)
+option(BUILD_ROVER_MLIR "Build rover-mlir subproject" ON)
+if(BUILD_ROVER_MLIR)
+  add_subdirectory(rover-mlir)
+endif()
+
 # check-all: run all test suites that are enabled
 set(CHECK_ALL_DEPENDS check-tamagoyaki)
 if(BUILD_HERBIE_MLIR)
