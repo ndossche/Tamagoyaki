@@ -14,6 +14,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
@@ -28,6 +29,8 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -47,24 +50,25 @@ static unsigned ceilLog2(unsigned v) {
 }
 
 // Helper to get the narrow width if value is zero-extended
-std::optional<unsigned> getZeroExtendedWidth(Value val) {
+unsigned getZeroExtendedWidth(Value val) {
+  auto width = val.getType().getIntOrFloatBitWidth();
   auto concat = val.getDefiningOp<comb::ConcatOp>();
   if (!concat)
-    return std::nullopt;
+    return width;
 
   auto inputs = concat.getInputs();
   if (inputs.size() != 2)
-    return std::nullopt;
+    return width;
 
   // Check first input is constant zero
   auto prefix = inputs[0].getDefiningOp<hw::ConstantOp>();
   if (!prefix || !prefix.getValue().isZero())
-    return std::nullopt;
+    return width;
 
   // Return width of the base (non-extended) value
   auto baseType = llvm::dyn_cast<IntegerType>(inputs[1].getType());
   if (!baseType)
-    return std::nullopt;
+    return width;
 
   return baseType.getWidth();
 }
@@ -73,21 +77,12 @@ unsigned getBinaryOpCost(Value lhs, Value rhs) {
   auto lhsWidth = getZeroExtendedWidth(lhs);
   auto rhsWidth = getZeroExtendedWidth(rhs);
 
-  if (!lhsWidth)
-    lhsWidth = lhs.getType().getIntOrFloatBitWidth();
-
-  if (!rhsWidth)
-    rhsWidth = rhs.getType().getIntOrFloatBitWidth();
-
   // Cost is the maximum narrow width
-  return (*lhsWidth) * (*rhsWidth);
+  return lhsWidth * rhsWidth;
 }
 
-static LogicalResult rewriterBuildPartialProduct(PatternRewriter &rewriter,
-                                                 PDLResultList &results,
-                                                 ArrayRef<PDLValue> args) {
-  auto *mulOp = args[0].cast<Operation *>();
-
+static Operation *rewriterBuildPartialProduct(PatternRewriter &rewriter,
+                                              Operation *mulOp) {
   // Operands of comb.mul
   Value lhs = mulOp->getOperand(0);
   Value rhs = mulOp->getOperand(1);
@@ -99,19 +94,22 @@ static LogicalResult rewriterBuildPartialProduct(PatternRewriter &rewriter,
   auto ppOp = datapath::PartialProductOp::create(
       rewriter, mulOp->getLoc(), ppResultTypes, ValueRange{lhs, rhs});
 
-  // Hand the comb.add back to PDL so it can wire up the replacement.
-  results.push_back(ppOp.getOperation());
-  return success();
+  return ppOp.getOperation();
 }
 
-static LogicalResult rewriterBuildCompress(PatternRewriter &rewriter,
-                                           PDLResultList &results,
-                                           ArrayRef<PDLValue> args) {
-  auto compressOperands = args[0].cast<ValueRange>();
+static Operation *rewriterBuildZero(PatternRewriter &rewriter,
+                                    Operation *operation) {
+  // Result type of the original op
+  auto type = operation->getResult(0).getType();
 
-  if (compressOperands.size() < 3)
-    return failure();
+  auto zero = hw::ConstantOp::create(rewriter, operation->getLoc(), type,
+                                     rewriter.getIntegerAttr(type, 0));
 
+  return zero.getOperation();
+}
+
+static Operation *rewriterBuildCompress(PatternRewriter &rewriter,
+                                        ValueRange compressOperands) {
   IntegerType elemTy = cast<IntegerType>(compressOperands[0].getType());
 
   SmallVector<Type> compressResultTypes(2, elemTy);
@@ -120,11 +118,8 @@ static LogicalResult rewriterBuildCompress(PatternRewriter &rewriter,
       datapath::CompressOp::create(rewriter, compressOperands[0].getLoc(),
                                    compressResultTypes, compressOperands);
 
-  // Hand the comb.add back to PDL so it can wire up the replacement.
-  results.push_back(compressOp.getOperation());
-  return success();
+  return compressOp.getOperation();
 }
-
 class RoverSaturatePass
     : public impl::RoverSaturatePassBase<RoverSaturatePass> {
 public:
@@ -174,6 +169,7 @@ public:
     pdlPattern.registerRewriteFunction("BuildPartialProduct",
                                        rewriterBuildPartialProduct);
     pdlPattern.registerRewriteFunction("BuildCompress", rewriterBuildCompress);
+    pdlPattern.registerRewriteFunction("BuildZero", rewriterBuildZero);
     bool saturationSuccess = mlir::ematch::runSaturation(
         irModule->getContext(), std::move(pdlPattern), irModule, maxIters,
         maxNodes);
@@ -184,24 +180,77 @@ public:
   }
 };
 
+/// Compute the cost of a single operand given precomputed opCosts.
+/// Block arguments (no defining op) are free (cost 0).
+/// Returns -1 if the defining op is not in the cost map.
+static int64_t
+lookupOperandCost(Value operand,
+                  const DenseMap<Operation *, int64_t> &opCosts) {
+  Operation *defOp = operand.getDefiningOp();
+  if (!defOp)
+    return 0;
+  auto it = opCosts.find(defOp);
+  if (it == opCosts.end())
+    return -1;
+  return it->second;
+}
+
+/// Prune each ClassOp in the graph to only keep operands that achieve the
+/// minimum total cost under the given cost attribute and reduction function.
+/// This is a rover-specific e-graph pruning step: it removes non-optimal
+/// operands from each e-class without fully extracting the graph.
+static void pruneGraphByCost(GraphOp graphOp, int64_t defaultCost,
+                             llvm::StringRef costAttributeName,
+                             const CostReductionFn &reductionFn) {
+  DenseMap<Operation *, int64_t> opCosts =
+      computeGraphCosts(graphOp, defaultCost, costAttributeName, reductionFn);
+
+  // Prune: for each ClassOp, keep only operands with minimum cost.
+  SmallVector<ClassOp> classOps;
+  graphOp.walk([&](ClassOp classOp) { classOps.push_back(classOp); });
+
+  for (ClassOp classOp : classOps) {
+    if (classOp.getNumOperands() <= 1)
+      continue;
+
+    int64_t minCost = std::numeric_limits<int64_t>::max();
+    for (Value operand : classOp.getInputs()) {
+      int64_t cost = lookupOperandCost(operand, opCosts);
+      if (cost >= 0)
+        minCost = std::min(minCost, cost);
+    }
+
+    if (minCost == std::numeric_limits<int64_t>::max())
+      continue;
+
+    SmallVector<unsigned> toErase;
+    for (auto [i, operand] : llvm::enumerate(classOp.getInputs())) {
+      int64_t cost = lookupOperandCost(operand, opCosts);
+      if (cost == -1 || cost > minCost)
+        toErase.push_back(i);
+    }
+
+    // Erase in reverse to preserve indices.
+    for (auto it = toErase.rbegin(); it != toErase.rend(); ++it)
+      classOp->eraseOperand(*it);
+  }
+
+  // Clear min_cost_index so the next selectGreedy starts fresh.
+  clearSelection(graphOp, costAttributeName);
+}
+
 class RoverExtractPass : public impl::RoverExtractPassBase<RoverExtractPass> {
 public:
   using impl::RoverExtractPassBase<RoverExtractPass>::RoverExtractPassBase;
 
   void runOnOperation() final {
-    mlir::ModuleOp module = getOperation();
-
-    ModuleOp irModule = module.lookupSymbol<ModuleOp>(
-        StringAttr::get(module->getContext(), "ir"));
-
-    if (!irModule)
-      return;
+    ModuleOp module = getOperation();
 
     // select greedily:
-    irModule.walk(
+    module.walk(
         [&](GraphOp graphOp) { selectGreedy(graphOp, 1, "equivalence.cost"); });
 
-    irModule.walk([&](GraphOp graphOp) {
+    module.walk([&](GraphOp graphOp) {
       // clearSelection(graphOp, "rover.cost");
 
       graphOp.walk([&](Operation *op) {
@@ -212,27 +261,33 @@ public:
             llvm::TypeSwitch<Operation *, std::pair<unsigned, unsigned>>(op)
                 .Case<comb::AddOp>([](comb::AddOp addOp) {
                   // Adder cost = width
-                  auto addArea =
+                  if (addOp.getNumOperands() == 2 &&
+                      addOp.getOperand(0) == addOp.getOperand(1)) {
+                    return std::pair{0, 0};
+                  }
+                  int addArea =
                       addOp.getResult().getType().getIntOrFloatBitWidth();
-                  auto addDelay = ceilLog2(addArea);
-                  (void)addDelay;
-                  // return std::pair{addArea, addDelay};
-                  return std::pair{10000, 1000};
+                  auto lhsWidth = getZeroExtendedWidth(addOp.getOperand(0));
+                  auto rhsWidth = getZeroExtendedWidth(addOp.getOperand(1));
+                  int addDelay = ceilLog2(std::max(
+                      lhsWidth, rhsWidth)); // assume a tree of 2-input adders
+                  return std::pair{addArea, addDelay};
+                  // return std::pair{10000, addDelay};
                 })
                 .Case<comb::MulOp>([](comb::MulOp mulOp) {
                   // Multiplier cost = width(lhs) * width(rhs)
-                  return std::pair{10000, 10000};
+                  auto lhsWidth = getZeroExtendedWidth(mulOp.getOperand(0));
+                  auto rhsWidth = getZeroExtendedWidth(mulOp.getOperand(1));
+
+                  auto maxWidth = std::max(lhsWidth, rhsWidth);
+
+                  return std::pair{10000, maxWidth};
                 })
                 .Case<comb::ShlOp>([](comb::ShlOp shlOp) {
                   auto shlArea =
                       getBinaryOpCost(shlOp.getLhs(), shlOp.getRhs());
                   auto shiftBy = getZeroExtendedWidth(shlOp.getRhs());
-                  if (shiftBy)
-                    return std::pair{shlArea, *shiftBy};
-
-                  return std::pair{
-                      shlArea,
-                      shlOp.getRhs().getType().getIntOrFloatBitWidth()};
+                  return std::pair{shlArea, shiftBy};
                 })
                 .Case<datapath::PartialProductOp>(
                     [](datapath::PartialProductOp ppOp) {
@@ -256,31 +311,34 @@ public:
 
                       return std::pair{compressCost / numRes, ceilLog2(numOps)};
                     })
+                .Case<comb::ExtractOp>(
+                    [](comb::ExtractOp extractOp) { return std::pair{0, 0}; })
+                .Case<comb::ConcatOp>(
+                    [](comb::ConcatOp concatOp) { return std::pair{0, 0}; })
                 .Default([](auto) { return std::pair{0, 1}; });
 
-        if (extractDelay)
-          op->setAttr("equivalence.cost",
-                      CostAttr::get(op->getContext(), delay));
-        else
-          op->setAttr("equivalence.cost",
-                      CostAttr::get(op->getContext(), area));
+        op->setAttr("equivalence.delay",
+                    CostAttr::get(op->getContext(), delay));
+        op->setAttr("equivalence.area", CostAttr::get(op->getContext(), area));
       });
 
-      if (extractDelay)
-        selectGreedy(graphOp, /*defaultCost=*/-1, "equivalence.cost",
-                     costReductionMax);
-      else
-        selectGreedy(graphOp, /*defaultCost=*/-1, "equivalence.cost");
-      llvm::errs() << "=== IR After Costing ===\n";
-      irModule.print(llvm::errs());
-      llvm::errs() << "\n";
+      if (extractDelay) {
+        pruneGraphByCost(graphOp, /*defaultCost=*/-1, "equivalence.delay",
+                         costReductionMax);
+        llvm::errs() << "=== IR After Delay Pruning ===\n";
+        module.print(llvm::errs());
+        llvm::errs() << "\n";
+      }
 
+      selectGreedy(graphOp, /*defaultCost=*/-1, "equivalence.area");
       extractFromGraph(graphOp);
+
       graphOp.walk([&](Operation *op) {
         if (isa<ClassOp>(op) || isa<GraphOp>(op) || isa<YieldOp>(op))
           return;
 
-        op->removeAttr("equivalence.cost");
+        op->removeAttr("equivalence.area");
+        op->removeAttr("equivalence.delay");
         if (op->getUses().empty())
           op->erase();
       });
