@@ -10,7 +10,7 @@ from typing import Union
 from xdsl import ir
 from xdsl.builder import Builder
 from xdsl.dialects import arith, func, math, scf
-from xdsl.dialects.builtin import AnyFloat, FloatAttr, FunctionType, ModuleOp, f32, i1
+from xdsl.dialects.builtin import AnyFloat, FloatAttr, FunctionType, ModuleOp, f64, i1
 from xdsl.ir import Block, Region, SSAValue
 from xdsl.printer import Printer
 from xdsl.rewriter import InsertPoint
@@ -279,7 +279,7 @@ CMP_MAP = {
 
 
 class MLIRGenerator:
-    def __init__(self, fpcore: FPCore, float_type: AnyFloat = f32):
+    def __init__(self, fpcore: FPCore, float_type: AnyFloat = f64):
         self.fpcore = fpcore
         self.float_type = float_type
         self.ssa_map: dict[str, SSAValue] = {}
@@ -447,7 +447,7 @@ class MLIRGenerator:
                     raise ValueError(f"Operation '{expr.name}' has no operands")
 
 
-def generate_mlir_from_fpcore(text: str, float_type: AnyFloat = f32) -> ModuleOp:
+def generate_mlir_from_fpcore(text: str, float_type: AnyFloat = f64) -> ModuleOp:
     """High-level function to parse FPCore and generate MLIR."""
     fpcore_objs = parse_fpcore(text)
     functions: list[ir.Operation] = []

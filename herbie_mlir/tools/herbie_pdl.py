@@ -18,7 +18,7 @@ from xdsl.dialects.builtin import (
     IntegerAttr,
     IntegerType,
     StringAttr,
-    f32,
+    f64,
 )
 from xdsl.ir import (
     Attribute,
@@ -245,7 +245,7 @@ def _build_expr(
             attribute_values=(attr.output,),
             type_values=(tvar,),
         )
-        return pdl.ResultOp(IntegerAttr.from_int_and_width(0, 32), op.results[0]).val
+        return pdl.ResultOp(IntegerAttr(0, 32), op.results[0]).val
 
     assert isinstance(expr, Operation)
     if expr.name in Constant.__members__ and not expr.operands:
@@ -262,12 +262,12 @@ def _build_expr(
         op = pdl.OperationOp(
             op_name=mlir_name, operand_values=operands, type_values=(tvar,)
         )
-    return pdl.ResultOp(IntegerAttr.from_int_and_width(0, 32), op.results[0]).val
+    return pdl.ResultOp(IntegerAttr(0, 32), op.results[0]).val
 
 
 def convert_rule(
     rule: Rule,
-    element_type: AnyFloat | AnySignlessIntegerType = f32,
+    element_type: AnyFloat | AnySignlessIntegerType = f64,
     benefit: int = 1,
 ) -> pdl.PatternOp:
     vals: dict[str, SSAValue] = {}
