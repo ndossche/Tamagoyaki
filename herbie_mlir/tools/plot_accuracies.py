@@ -101,9 +101,6 @@ def main():
     # Extract the relevant columns
     names = df["name"]
     small_diff_mask = df["small_diff"]
-    nmse_start = len(df_other)  # Index where NMSE group starts
-    nmse_end = len(df) - 1  # Index where NMSE group ends
-
     # Convert bits of error to percentage accuracy
     original = 100 - (df["original_accuracy_bits"] / 64 * 100)
     optimized = 100 - (df["optimized_accuracy_bits"] / 64 * 100)
@@ -479,63 +476,9 @@ def main():
     # Grid removed
     ax.set_axisbelow(True)
 
-    # Store the original y-limits before adding bracket
-    ylim = ax.get_ylim()
-
     # Add some padding
     plt.tight_layout()
-    plt.subplots_adjust(bottom=0.35)  # Make room for bracket and labels
-
-    # Add bracket for NMSE group if there are NMSE benchmarks
-    if nmse_start < len(names):
-        bracked_width = 0.8
-        y_range = ylim[1] - ylim[0]
-
-        # Draw a bracket below the x-labels
-        bracket_y = ylim[0] - y_range * 0.5
-        bracket_height = y_range * 0.03
-
-        # Draw horizontal line
-        ax.plot(
-            [nmse_start - 0.5, nmse_end + 0.5],
-            [bracket_y, bracket_y],
-            "k-",
-            linewidth=bracked_width,
-            clip_on=False,
-            transform=ax.transData,
-        )
-        # Draw vertical ticks at ends
-        ax.plot(
-            [nmse_start - 0.5, nmse_start - 0.5],
-            [bracket_y, bracket_y + bracket_height],
-            "k-",
-            linewidth=bracked_width,
-            clip_on=False,
-            transform=ax.transData,
-        )
-        ax.plot(
-            [nmse_end + 0.5, nmse_end + 0.5],
-            [bracket_y, bracket_y + bracket_height],
-            "k-",
-            linewidth=bracked_width,
-            clip_on=False,
-            transform=ax.transData,
-        )
-
-        # Add NMSE label
-        ax.text(
-            (nmse_start + nmse_end) / 2,
-            bracket_y - y_range * 0.015,
-            "NMSE",
-            ha="center",
-            va="top",
-            fontsize=6,
-            clip_on=False,
-            transform=ax.transData,
-        )
-
-        # Reset y-limits to original values to prevent axis extension
-        ax.set_ylim(ylim)
+    plt.subplots_adjust(bottom=0.35)  # Make room for labels
 
     # Save as high-resolution PDF
     plt.savefig(args.output, dpi=300, bbox_inches="tight", pad_inches=0)

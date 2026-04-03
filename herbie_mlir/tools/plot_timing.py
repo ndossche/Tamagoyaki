@@ -75,9 +75,6 @@ def main():
     optimize_times = df["optimize_ms"]
     herbie_times = df["herbie_total_ms"]
     speedups = df["speedup"]
-    nmse_start = len(df_other)  # Index where NMSE group starts
-    nmse_end = len(df) - 1  # Index where NMSE group ends
-
     # Set up the plot with non-LaTeX styling and fonttype 42
     plt.rcParams["pdf.fonttype"] = 42
     plt.rcParams["ps.fonttype"] = 42
@@ -201,68 +198,7 @@ def main():
     plt.tight_layout()
     plt.subplots_adjust(
         bottom=0.45, top=0.88
-    )  # Add space at bottom for bracket and top for legend
-
-    # Add bracket for NMSE group if there are NMSE benchmarks
-    if nmse_start < len(names):
-        bracked_width = 0.8
-
-        # Get current y-limits for bracket positioning
-        ylim_for_bracket = ax.get_ylim()
-
-        # For log scale, we need to work in log space
-        log_ylim = np.log10(ylim_for_bracket)
-        log_range = log_ylim[1] - log_ylim[0]
-
-        # Draw a bracket below the x-labels (in log space)
-        bracket_y_log = log_ylim[0] - log_range * 0.57
-        bracket_height_log = log_range * 0.03
-
-        # Convert back to linear scale
-        bracket_y = 10**bracket_y_log
-        bracket_height = 10 ** (bracket_y_log + bracket_height_log) - bracket_y
-
-        # Draw horizontal line
-        ax.plot(
-            [nmse_start - 0.5, nmse_end + 0.5],
-            [bracket_y, bracket_y],
-            "k-",
-            linewidth=bracked_width,
-            clip_on=False,
-            transform=ax.transData,
-        )
-        # Draw vertical ticks at ends
-        ax.plot(
-            [nmse_start - 0.5, nmse_start - 0.5],
-            [bracket_y, bracket_y + bracket_height],
-            "k-",
-            linewidth=bracked_width,
-            clip_on=False,
-            transform=ax.transData,
-        )
-        ax.plot(
-            [nmse_end + 0.5, nmse_end + 0.5],
-            [bracket_y, bracket_y + bracket_height],
-            "k-",
-            linewidth=bracked_width,
-            clip_on=False,
-            transform=ax.transData,
-        )
-
-        # Add NMSE label
-        ax.text(
-            (nmse_start + nmse_end) / 2,
-            bracket_y * (10 ** (-log_range * 0.015)),
-            "NMSE",
-            ha="center",
-            va="top",
-            fontsize=6,
-            clip_on=False,
-            transform=ax.transData,
-        )
-
-        # Reset y-limits to original values to prevent axis extension
-        ax.set_ylim(ylim_for_bracket)
+    )  # Add space at bottom and top for legend
 
     # Save as high-resolution PDF
     plt.savefig(args.output, dpi=300, bbox_inches="tight", pad_inches=0)
