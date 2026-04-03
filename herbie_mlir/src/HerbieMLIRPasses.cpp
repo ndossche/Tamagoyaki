@@ -124,6 +124,16 @@ static double ulpDistance(double a, double b) {
   return static_cast<double>(diff < 0 ? -diff : diff);
 }
 
+/// Convert a ULP distance to bits of error, following Herbie's ulps->bits.
+/// 0 ULPs → 0 bits; otherwise log₂(ulp).  NaN/Inf results (which get the
+/// huge sentinel from ulpDistance) are capped at `maxBits` (64 for binary64).
+static double ulpsToBits(double ulps, double maxBits = 64.0) {
+  if (ulps <= 0.0)
+    return 0.0;
+  double bits = std::log2(ulps);
+  return std::min(bits, maxBits);
+}
+
 /// A single patch: one alternative operand choice in one patchable ClassOp.
 struct PatchDesc {
   ClassOp classOp;
@@ -505,6 +515,10 @@ evaluateAllPatchesBatched(GraphOp graphOp, ArrayRef<Value> funcArgs,
 
   // ------------------------------------------------------------------
   // 6. Result collection — find the single best patch globally.
+  //    Scoring uses Herbie's bits-of-error metric:
+  //      bits_error(point) = log₂(ulpDistance(candidate, exact))
+  //    and we compare candidates by the sum (equivalently, average)
+  //    of per-point bits of error across all sample points.
   // ------------------------------------------------------------------
   auto outIt = valueMap.find(outputVal);
   if (outIt == valueMap.end())
@@ -512,17 +526,33 @@ evaluateAllPatchesBatched(GraphOp graphOp, ArrayRef<Value> funcArgs,
 
   const ValueColumns &outVC = outIt->second;
 
-  double baselineUlp = 0.0;
-  for (size_t s = 0; s < numSamples; ++s) {
-    if (s < outVC.baseline.size())
-      baselineUlp += ulpDistance(outVC.baseline[s], gtOutputs[s]);
-    else
-      baselineUlp += static_cast<double>(1ULL << 62);
-  }
+  // Maximum bits penalty for invalid results (NaN, Inf, missing).
+  constexpr double kMaxBits = 64.0;
 
-  double globalBestUlp = baselineUlp;
+  // Helper: compute total bits-of-error for an output column against ground
+  // truth.
+  auto computeTotalBitsError = [&](const SmallVector<double> &col) -> double {
+    double totalBits = 0.0;
+    for (size_t s = 0; s < numSamples; ++s) {
+      if (s < col.size()) {
+        totalBits += ulpsToBits(ulpDistance(col[s], gtOutputs[s]), kMaxBits);
+      } else
+        totalBits += kMaxBits;
+    }
+    return totalBits;
+  };
+
+  double baselineTotalBits = computeTotalBitsError(outVC.baseline);
+
+  double globalBestTotalBits = baselineTotalBits;
   Operation *globalBestClassOp = nullptr;
   unsigned globalBestOperandIdx = 0;
+
+  LLVM_DEBUG(
+      llvm::dbgs() << "Baseline : avg bits of error = "
+                   << baselineTotalBits / numSamples << " (accuracy = "
+                   << 100.0 * (1.0 - baselineTotalBits / numSamples / kMaxBits)
+                   << "%)\n");
 
   // Iterate patches via the registry — patchId ↔ operand relationship
   // is always looked up, never derived arithmetically.
@@ -530,24 +560,20 @@ evaluateAllPatchesBatched(GraphOp graphOp, ArrayRef<Value> funcArgs,
     auto &patch = patchRegistry[patchId];
     auto overIt = outVC.overrides.find(patchId);
 
-    double totalUlp = 0.0;
-    if (overIt != outVC.overrides.end()) {
-      for (size_t s = 0; s < numSamples; ++s) {
-        if (s < overIt->second.size())
-          totalUlp += ulpDistance(overIt->second[s], gtOutputs[s]);
-        else
-          totalUlp += static_cast<double>(1ULL << 62);
-      }
-    } else {
-      totalUlp = baselineUlp;
-    }
+    double totalBits;
+    if (overIt != outVC.overrides.end())
+      totalBits = computeTotalBitsError(overIt->second);
+    else
+      totalBits = baselineTotalBits;
 
     LLVM_DEBUG(llvm::dbgs()
                << "Patch " << patchId << " operand " << patch.operandIndex
-               << ": total ULP = " << totalUlp << "\n");
+               << ": avg bits of error = " << totalBits / numSamples
+               << " (accuracy = "
+               << 100.0 * (1.0 - totalBits / numSamples / kMaxBits) << "%)\n");
 
-    if (totalUlp < globalBestUlp) {
-      globalBestUlp = totalUlp;
+    if (totalBits < globalBestTotalBits) {
+      globalBestTotalBits = totalBits;
       globalBestClassOp = patch.classOp.getOperation();
       globalBestOperandIdx = patch.operandIndex;
     }
@@ -560,10 +586,16 @@ evaluateAllPatchesBatched(GraphOp graphOp, ArrayRef<Value> funcArgs,
     LLVM_DEBUG(llvm::dbgs()
                << "--> globally selected: Class " << classOp.getLoc()
                << " operand " << globalBestOperandIdx
-               << " (total ULP = " << globalBestUlp << ")\n");
+               << " (avg bits of error = " << globalBestTotalBits / numSamples
+               << ", accuracy = "
+               << 100.0 * (1.0 - globalBestTotalBits / numSamples / kMaxBits)
+               << "%)\n");
   } else {
-    LLVM_DEBUG(llvm::dbgs() << "  -> no patch improved on baseline (ULP = "
-                            << baselineUlp << ")\n");
+    LLVM_DEBUG(llvm::dbgs()
+               << "  -> no patch improved on baseline (avg bits of error = "
+               << baselineTotalBits / numSamples << ", accuracy = "
+               << 100.0 * (1.0 - baselineTotalBits / numSamples / kMaxBits)
+               << "%)\n");
   }
 
   return true;
@@ -977,7 +1009,7 @@ public:
           gtArena, gtRoots, varNamePtrs, disc, intervalResult.searchResult,
           intervalResult.floatBitWidths, numSamples,
           /*evalMaxIterations=*/100,
-          /*evalMaxPrecision=*/2000, analysisPrecision);
+          /*evalMaxPrecision=*/2000, analysisPrecision, 43);
       rival_disc_free(disc);
       rival_expr_arena_free(gtArena);
 
@@ -997,11 +1029,8 @@ public:
     if (failed(mlir::equivalence::insertGraphInFunction(
             funcOp, /*insertSingleElementEqs=*/false)))
       return funcOp.emitError() << "failed to insert equivalence graph";
-    GraphOp graphOp;
-    // graphOp = dyn_cast<GraphOp>(&funcOp.front().front());
-    // assert(graphOp);
 
-    graphOp = llvm::dyn_cast<GraphOp>(*funcOp.getOps().begin());
+    GraphOp graphOp = llvm::dyn_cast<GraphOp>(*funcOp.getOps().begin());
     assert(graphOp);
 
     OriginalOpTracker tracker;
@@ -1049,10 +1078,20 @@ public:
     // Step 5: Greedy initial selection.
     // ---------------------------------------------------------------
     selectGreedy(graphOp, 1, "herbie.cost");
+    // Ensure the original expression is selected by the greedy selection:
+    for (auto originalOp : tracker.getOps()) {
+      if (originalOp->hasOneUse()) {
+        OpOperand &use = *(originalOp->use_begin());
+        if (ClassOp c = dyn_cast<ClassOp>(use.getOwner())) {
+          c.getMinCostIndex() = use.getOperandNumber();
+        }
+      }
+    }
 
     // ---------------------------------------------------------------
-    // Step 6: Batched per-class optimization via sample-based ULP
-    //         evaluation — all patches evaluated in one traversal.
+    // Step 6: Batched per-class optimization via sample-based
+    //         bits-of-error evaluation — all patches evaluated in
+    //         one traversal.
     // ---------------------------------------------------------------
     {
       TAMAGOYAKI_SCOPED_TIMER("PerClassOptimization");
