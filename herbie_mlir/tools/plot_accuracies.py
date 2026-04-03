@@ -106,6 +106,9 @@ def main():
     optimized = 100 - (df["optimized_accuracy_bits"] / 64 * 100)
     target = 100 - (df["target_accuracy_bits"] / 64 * 100)
 
+    # Tamagoyaki is within 99% of Herbie's accuracy
+    close_to_herbie = target >= 0.99 * optimized
+
     # Set up the plot with non-LaTeX styling and fonttype 42
     plt.rcParams["pdf.fonttype"] = 42
     plt.rcParams["ps.fonttype"] = 42
@@ -147,8 +150,9 @@ def main():
         bars3_list = []
 
         for i in range(len(names)):
-            alpha_opt = 0.8 if not small_diff_mask.iloc[i] else alpha_faded * 0.8
-            alpha_tgt = 0.8 if not small_diff_mask.iloc[i] else alpha_faded * 0.8
+            faded = small_diff_mask.iloc[i] or close_to_herbie.iloc[i]
+            alpha_opt = 0.8 if not faded else alpha_faded * 0.8
+            alpha_tgt = 0.8 if not faded else alpha_faded * 0.8
 
             bar2 = ax.bar(
                 x[i] - width / 2,
@@ -169,7 +173,7 @@ def main():
             bars3_list.append(bar3[0])
 
             # Draw dotted baseline line spanning both bars
-            label_alpha = 1.0 if not small_diff_mask.iloc[i] else 0.5
+            label_alpha = 1.0 if not faded else 0.5
             baseline_y = original.iloc[i]
             line_x_start = x[i] - width - 0.05
             line_x_end = x[i] + width + 0.05
