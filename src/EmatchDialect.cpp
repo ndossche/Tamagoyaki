@@ -13,7 +13,6 @@
 #include "EquivalenceDialect.h"
 #include "Utils/ClassOpUnionFind.h"
 #include "Utils/HashConsPatternRewriter.h"
-#include "Utils/MultiMatcherPDLByteCode.h"
 #include "Utils/MutableScopedHashTable.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/IR/Builders.h"
@@ -95,7 +94,7 @@ namespace {
 
 struct PendingMatch {
   Operation *op;
-  mlir::detail::MultiMatcherPDLByteCode::MatchResult matchResult;
+  mlir::detail::PDLByteCode::MatchResult matchResult;
 };
 
 } // namespace
@@ -140,6 +139,7 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
                    ModuleOp irModule, int maxIters, int maxNodes,
                    RewriterBase::Listener *listener, bool eagerRewrite) {
   TAMAGOYAKI_SCOPED_TIMER("runSaturation");
+  RewritePatternSet patternList(ctx);
 
   ClassOpUnionFind uf{};
   HashConsPatternRewriter hashconsRewriter(ctx);
@@ -215,19 +215,18 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
         (void)hashconsRewriter.insert(op);
         return op;
       });
+  patternList.add(std::move(pdlPattern));
 
-  ModuleOp pdlModule = pdlPattern.getModule();
-  auto configs = pdlPattern.takeConfigs();
-  auto configMap = pdlPattern.takeConfigMap();
-  auto constraintFns = pdlPattern.takeConstraintFunctions();
-  auto rewriteFns = pdlPattern.takeRewriteFunctions();
+  FrozenRewritePatternSet frozenPatterns(std::move(patternList));
 
-  mlir::detail::MultiMatcherPDLByteCode bytecode(
-      pdlModule, std::move(configs), configMap, std::move(constraintFns),
-      std::move(rewriteFns));
-
-  mlir::detail::MultiMatcherMutableState bytecodeState;
   SmallVector<PendingMatch> allMatches;
+
+  const auto *bytecode = frozenPatterns.getPDLByteCode();
+  if (!bytecode) {
+    return false;
+  }
+
+  mlir::detail::PDLByteCodeMutableState bytecodeState;
 
   int nIters = 0;
   bool maxNodesExceeded = false;
@@ -256,12 +255,13 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
     });
 
     nIters++;
-    if (nIters > maxIters)
+    if (nIters > maxIters) {
       break;
+    }
     LLVM_DEBUG(llvm::dbgs()
                << "Equality saturation: starting iteration " << nIters << "\n");
 
-    bytecode.initializeMutableState(bytecodeState);
+    bytecode->initializeMutableState(bytecodeState);
 
     if (eagerRewrite) {
       // Collect operations upfront so newly inserted ops during rewriting
@@ -277,13 +277,12 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
       {
         TAMAGOYAKI_SCOPED_TIMER("match+rewrite (eager)");
         for (Operation *op : opsToProcess) {
-          SmallVector<mlir::detail::MultiMatcherPDLByteCode::MatchResult>
-              opMatches;
-          bytecode.match(op, hashconsRewriter, opMatches, bytecodeState);
+          SmallVector<mlir::detail::PDLByteCode::MatchResult> opMatches;
+          bytecode->match(op, hashconsRewriter, opMatches, bytecodeState);
 
           for (const auto &match : opMatches) {
             hashconsRewriter.setInsertionPoint(op);
-            (void)bytecode.rewrite(hashconsRewriter, match, bytecodeState);
+            (void)bytecode->rewrite(hashconsRewriter, match, bytecodeState);
             if (maxNodes > 0 &&
                 hashconsRewriter.getNodeCount() > (uint64_t)maxNodes) {
               LLVM_DEBUG(llvm::dbgs() << "Node limit exceeded: "
@@ -309,9 +308,8 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
               isa<equivalence::EquivalenceDialect>(dialect))
             return;
 
-          SmallVector<mlir::detail::MultiMatcherPDLByteCode::MatchResult>
-              opMatches;
-          bytecode.match(op, hashconsRewriter, opMatches, bytecodeState);
+          SmallVector<mlir::detail::PDLByteCode::MatchResult> opMatches;
+          bytecode->match(op, hashconsRewriter, opMatches, bytecodeState);
 
           for (auto &match : opMatches)
             allMatches.push_back({op, std::move(match)});
@@ -321,8 +319,8 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
         TAMAGOYAKI_SCOPED_TIMER("rewrite");
         for (const auto &pm : allMatches) {
           hashconsRewriter.setInsertionPoint(pm.op);
-          (void)bytecode.rewrite(hashconsRewriter, pm.matchResult,
-                                 bytecodeState);
+          (void)bytecode->rewrite(hashconsRewriter, pm.matchResult,
+                                  bytecodeState);
           if (maxNodes > 0 &&
               hashconsRewriter.getNodeCount() > (uint64_t)maxNodes) {
             LLVM_DEBUG(llvm::dbgs() << "Node limit exceeded: "
@@ -338,8 +336,9 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
     }
 
     bool didRebuild = uf.rebuild(hashconsRewriter);
-    if (maxNodesExceeded || !didRebuild)
+    if (maxNodesExceeded || !didRebuild) {
       break;
+    }
   }
 
   return true;
