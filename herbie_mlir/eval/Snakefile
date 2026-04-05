@@ -128,7 +128,7 @@ rule run_herbie_report:
     output:
         directory(f"{HERBIE_EVAL_DIR}/herbie_report")
     shell:
-        'PLTADDONDIR={herbie_racket_prefix} racket -l herbie report --disable setup:preprocess --disable reduce:regimes --disable generate:taylor --disable generate:proofs  --platform math --num-iters 1 {input} {output}'
+        'PLTADDONDIR={herbie_racket_prefix} racket -l herbie report --disable setup:preprocess --disable reduce:regimes --disable generate:taylor --disable generate:proofs  --platform math --num-iters 1 --seed 42 {input} {output}'
 
 # ============ Evaluation Export Pipeline ============
 
