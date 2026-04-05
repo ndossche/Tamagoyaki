@@ -1053,7 +1053,7 @@ public:
       ModuleOp parentModule = funcOp->getParentOfType<ModuleOp>();
       bool ok = mlir::ematch::runSaturation(
           parentModule->getContext(), std::move(pdlPattern), parentModule,
-          maxSaturationIters, maxNodes, &tracker);
+          maxSaturationIters, maxNodes, &tracker, eagerRewrite);
       if (!ok)
         return funcOp.emitError() << "equality saturation failed";
     }

@@ -385,7 +385,7 @@ struct EmatchSaturatePass
     PDLPatternModule pdlPattern(patternsModule);
 
     runSaturation(module.getContext(), std::move(pdlPattern), irModule,
-                  maxIters, maxNodes);
+                  maxIters, maxNodes, /*listener=*/nullptr, eagerRewrite);
   }
 };
 

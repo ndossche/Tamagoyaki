@@ -82,7 +82,7 @@ rule saturation_timing_joint:
     output:
         f"{SATURATION_TIMING_DIR}/{{benchmark}}_joint.json"
     shell:
-        'mkdir -p {SATURATION_TIMING_DIR} && {herbie_mlir_opt_path} -equivalence-insert-graph -ematch-saturate="patterns-file={input.pdl_interp} max-iters=20 max-nodes=4000" {input.mlir} -tamagoyaki-timing -tamagoyaki-timing-output=json 2> {output} > /dev/null'
+        'mkdir -p {SATURATION_TIMING_DIR} && {herbie_mlir_opt_path} -equivalence-insert-graph -ematch-saturate="patterns-file={input.pdl_interp} max-iters=20 max-nodes=4000 eager-rewrite=false" {input.mlir} -tamagoyaki-timing -tamagoyaki-timing-output=json 2> {output} > /dev/null'
 
 rule saturation_timing_individual:
     input:
@@ -91,7 +91,7 @@ rule saturation_timing_individual:
     output:
         f"{SATURATION_TIMING_DIR}/{{benchmark}}_individual.json"
     shell:
-        'mkdir -p {SATURATION_TIMING_DIR} && {herbie_mlir_opt_path} -equivalence-insert-graph -ematch-saturate="patterns-file={input.pdl_interp} max-iters=20 max-nodes=4000" {input.mlir} -tamagoyaki-timing -tamagoyaki-timing-output=json 2> {output} > /dev/null'
+        'mkdir -p {SATURATION_TIMING_DIR} && {herbie_mlir_opt_path} -equivalence-insert-graph -ematch-saturate="patterns-file={input.pdl_interp} max-iters=20 max-nodes=4000 eager-rewrite=false" {input.mlir} -tamagoyaki-timing -tamagoyaki-timing-output=json 2> {output} > /dev/null'
 
 rule optimized_mlir_to_fpcore:
     input:

@@ -177,7 +177,10 @@ def EmatchSaturatePass : Pass<"ematch-saturate", "::mlir::ModuleOp"> {
                "Maximum number of nodes in the e-graph (0 = unlimited).">,
         Option<"patternsFile", "patterns-file", "std::string", /*default=*/"\"\"",
                "Path to an MLIR file containing the patterns module. "
-               "When set, the input module is treated as the IR module directly.">
+               "When set, the input module is treated as the IR module directly.">,
+        Option<"eagerRewrite", "eager-rewrite", "bool", "true",
+               "When true, matching and rewriting are interleaved (eager). "
+               "When false, all matches are collected first, then applied.">
     ];
 }
 
