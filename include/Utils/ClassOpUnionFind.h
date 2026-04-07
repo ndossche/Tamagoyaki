@@ -16,7 +16,6 @@
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Support/LLVM.h"
-#include "llvm/ADT/EquivalenceClasses.h"
 
 namespace mlir::ematch {
 
@@ -27,6 +26,10 @@ SmallVector<mlir::Value> getClassVals(mlir::PatternRewriter &rewriter,
 /// Helper function to get the first value from a ClassOp
 mlir::Value getClassRepresentative(mlir::PatternRewriter &rewriter,
                                    mlir::Value val);
+
+/// Follow the leader chain of a ClassOp to find the canonical leader,
+/// performing path compression along the way.
+equivalence::ClassOp getCanonicalLeader(equivalence::ClassOp classOp);
 
 /// Helper function to get the result of a ClassOp
 mlir::Value getClassResult(mlir::PatternRewriter &rewriter, mlir::Value val);
@@ -65,12 +68,6 @@ public:
   /// Process all pending queued class unions
   void processPendingClassUnions(mlir::PatternRewriter &rewriter);
 
-  /// Check if two values are in the same equivalence class
-  bool isEquivalent(equivalence::ClassOp a, equivalence::ClassOp b);
-
-  /// Erase a ClassOp from the union-find
-  void erase(equivalence::ClassOp op);
-
   /// Repair the parents of each ClassOp in the worklist.
   /// This also clears the worklist.
   /// Returns false when the worklist was empty, otherwise true.
@@ -80,14 +77,12 @@ public:
   /// a merged ClassOp.
   void repair(HashConsPatternRewriter &rewriter, equivalence::ClassOp classOp);
 
-  equivalence::ClassOp findLeader(equivalence::ClassOp c);
-
-  /// List of ClassOps whose parents potentially need to be repaired.
+  /// Worklist of ClassOps whose parents potentially need to be repaired.
+  /// Entries may become stale (operands cleared) if they were merged into
+  /// another class; such entries are skipped during rebuild.
   SmallVector<equivalence::ClassOp> worklist;
 
 private:
-  llvm::EquivalenceClasses<equivalence::ClassOp> unionFind;
-
   SmallVector<equivalence::ClassOp> pendingErase;
   SmallVector<std::pair<mlir::Value, mlir::Value>> pendingClassUnions;
 };

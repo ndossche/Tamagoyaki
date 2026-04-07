@@ -20,8 +20,11 @@
 #include "vendor/mlir/SimpleOperationInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include <cassert>
+#include <cstddef>
+#include <type_traits>
 #include <utility>
 
 #define DEBUG_TYPE "ematch"
@@ -43,6 +46,24 @@ SmallVector<Value> mlir::ematch::getClassVals(PatternRewriter &rewriter,
 Value mlir::ematch::getClassRepresentative(PatternRewriter &rewriter,
                                            Value val) {
   return getClassVals(rewriter, val)[0];
+}
+
+equivalence::ClassOp
+mlir::ematch::getCanonicalLeader(equivalence::ClassOp classOp) {
+  assert(classOp->getBlock());
+  Value leaderVal = classOp.getLeader();
+  if (!leaderVal)
+    return classOp; // I am the leader.
+
+  auto parentOp = cast<equivalence::ClassOp>(leaderVal.getDefiningOp());
+  assert(parentOp->getBlock());
+  if (!parentOp.getLeader())
+    return parentOp; // My parent is the leader.
+
+  // Path compression: find root leader and update my pointer.
+  equivalence::ClassOp root = getCanonicalLeader(parentOp);
+  classOp.getLeaderMutable().assign(root.getResult());
+  return root;
 }
 
 Value mlir::ematch::getClassResult(PatternRewriter &rewriter, Value val) {
@@ -69,24 +90,32 @@ SmallVector<Value> mlir::ematch::getClassResults(PatternRewriter &rewriter,
   return results;
 }
 
+equivalence::ClassOp getClassOpIfExists(Value val) {
+  if (auto *defOp = val.getDefiningOp()) {
+    if (auto classOp = dyn_cast<equivalence::ClassOp>(*defOp))
+      return classOp;
+  }
+  for (Operation *user : val.getUsers()) {
+    if (auto classOp = dyn_cast<equivalence::ClassOp>(*user))
+      return classOp;
+  }
+  return nullptr;
+}
+
 equivalence::ClassOp mlir::ematch::getClassOp(PatternRewriter &rewriter,
                                               Value val) {
 
-  Operation *defOp = val.getDefiningOp();
-  if (defOp != nullptr && dyn_cast<equivalence::ClassOp>(*defOp)) {
-    return cast<equivalence::ClassOp>(*defOp);
-  }
-  if (auto classOp = val.hasOneUse()
-                         ? dyn_cast<equivalence::ClassOp>(*val.user_begin())
-                         : nullptr) {
+  if (auto classOp = getClassOpIfExists(val)) {
     return classOp;
   }
-
   // If the value is not part of an eclass yet, create one
   OpBuilder builder(val.getContext());
+  assert(!val.getDefiningOp() ||
+         !dyn_cast<equivalence::ClassOp>(val.getDefiningOp()));
   builder.setInsertionPointAfterValue(val);
   auto classOp = equivalence::ClassOp::create(
-      builder, val.getLoc(), TypeRange{val.getType()}, ValueRange{val});
+      builder, val.getLoc(), TypeRange{val.getType()}, ValueRange{val},
+      /*leader=*/Value{}, /*min_cost_index=*/nullptr);
   rewriter.replaceUsesWithIf(
       val, classOp.getResult(),
       [&classOp](OpOperand &operand) { return operand.getOwner() != classOp; });
@@ -98,40 +127,23 @@ void ClassOpUnionFind::classUnion(PatternRewriter &rewriter, Value a, Value b) {
     return;
   }
 
-  equivalence::ClassOp classA = findLeader(getClassOp(rewriter, a));
-  equivalence::ClassOp classB = findLeader(getClassOp(rewriter, b));
+  equivalence::ClassOp classA = getClassOp(rewriter, a);
+  equivalence::ClassOp classB = getClassOp(rewriter, b);
 
-  if (isEquivalent(classA, classB))
+  if (classA == classB)
     return;
 
-  // TODO: unionSets always treats the first argument as leader
-  // this might lead to an unbalanced union-find?
-  equivalence::ClassOp leader = *unionFind.unionSets(classA, classB);
-  equivalence::ClassOp other = classB;
+  equivalence::ClassOp leader = getCanonicalLeader(classA);
+  equivalence::ClassOp other = getCanonicalLeader(classB);
 
-  rewriter.replaceAllUsesWith(other.getResult(), leader.getResult());
+  if (leader == other)
+    return;
 
-  // Find operands in `other` that aren't already in `leader`.
-  // Operands need to be deduplicated because it can happen that the same
-  // operand was used by different parent eclasses after their children were
-  // merged
-  SmallPtrSet<Value, 8> existing(leader->operand_begin(),
-                                 leader->operand_end());
-  SmallVector<Value, 8> newOperands;
-  for (Value operand : other->getOperands()) {
-    if (existing.insert(operand).second)
-      newOperands.push_back(operand);
-  }
-  // add newOperands to the end of the operand list
-  leader->setOperands(leader->getNumOperands(), 0, newOperands);
+  // Lazy union: just point `other` at `leader` via the leader operand.
+  other.getLeaderMutable().assign(leader.getResult());
 
-  // Defer erasure: the worklist may still reference `other`, so we can't
-  // erase it immediately. Collect it for cleanup after rebuild completes.
-  // Drop all operands so the dead op doesn't keep values alive.
-  other->setOperands(ValueRange{});
-  pendingErase.push_back(other);
-
-  worklist.push_back(leader);
+  // We push `other` such that at the start of `rebuild`,
+  worklist.push_back(other);
 }
 
 void ClassOpUnionFind::classUnion(PatternRewriter &rewriter, Operation *op,
@@ -179,43 +191,60 @@ void ClassOpUnionFind::processPendingClassUnions(PatternRewriter &rewriter) {
   pendingClassUnions.clear();
 }
 
-bool ClassOpUnionFind::isEquivalent(equivalence::ClassOp a,
-                                    equivalence::ClassOp b) {
-  return unionFind.isEquivalent(a, b);
-}
-
-void ClassOpUnionFind::erase(equivalence::ClassOp op) { unionFind.erase(op); }
-
-equivalence::ClassOp ClassOpUnionFind::findLeader(equivalence::ClassOp c) {
-  auto it = unionFind.findLeader(c);
-  if (it == unionFind.member_end()) {
-    return c;
-  } else {
-    assert(unionFind.contains(c));
-    return *it;
-  }
-}
-
 bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
   TAMAGOYAKI_SCOPED_TIMER("rebuild");
   LLVM_DEBUG({
     llvm::dbgs() << "Starting rebuild. Worklist contains " << worklist.size()
                  << " classes\n";
+    llvm::dbgs() << "Worklist: ";
+    for (auto rep : worklist) {
+      llvm::dbgs() << "\t";
+      rep.dump();
+    }
   });
 
   if (worklist.empty())
     return false;
 
   while (!worklist.empty()) {
-    // Create an ordered set of unique leaders from the worklist
     llvm::SetVector<equivalence::ClassOp> todo;
     for (equivalence::ClassOp c : worklist) {
-      todo.insert(findLeader(c));
+      if (!c->getBlock()) {
+        continue; // c has already been removed
+      }
+
+      auto leader = getCanonicalLeader(c);
+      if (c != leader) { // c needs to be canonicalized
+        // add operands to leader (deduplicated)
+        SmallPtrSet<Value, 8> existing(leader.getInputs().begin(),
+                                       leader.getInputs().end());
+        SmallVector<Value, 8> newOperands;
+        for (Value operand : c.getInputs()) {
+          assert(
+              !operand.getDefiningOp() ||
+              !llvm::dyn_cast<equivalence::ClassOp>(operand.getDefiningOp()));
+          if (existing.insert(operand).second)
+            newOperands.push_back(operand);
+        }
+        auto mutableInputs = leader.getInputsMutable();
+        mutableInputs.append(newOperands);
+
+        // update all users of c
+        rewriter.replaceAllUsesWith(c.getResult(), leader.getResult());
+
+        // remove c from IR and queue for erasure
+        c.getInputsMutable().clear();
+        c.getLeaderMutable().clear();
+        c->remove();
+        pendingErase.push_back(c);
+      }
+      todo.insert(leader);
     }
     worklist.clear();
 
-    // Repair each unique leader
     for (equivalence::ClassOp c : todo) {
+      if (c.getInputs().empty())
+        continue;
       repair(rewriter, c);
     }
   }
@@ -229,9 +258,10 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
       dead.dump();
     }
   });
+  SmallPtrSet<Operation *, 8> erased;
   for (equivalence::ClassOp dead : pendingErase) {
-    erase(dead);            // remove from union-find
-    rewriter.eraseOp(dead); // free Operation
+    if (erased.insert(dead.getOperation()).second)
+      rewriter.eraseOp(dead);
   }
   pendingErase.clear();
 
@@ -243,7 +273,6 @@ void ClassOpUnionFind::repair(HashConsPatternRewriter &rewriter,
   if (classOp->getBlock() == nullptr) {
     return;
   }
-  classOp = findLeader(classOp);
 
   llvm::DenseMap<Operation *, Operation *, SimpleOperationInfo> uniqueParents;
   // Collect pairs of duplicate operations to merge AFTER the loop
@@ -251,6 +280,10 @@ void ClassOpUnionFind::repair(HashConsPatternRewriter &rewriter,
 
   SmallPtrSet<Operation *, 8> scheduledForMerge;
   for (Operation *op1 : classOp.getResult().getUsers()) {
+    // Skip ClassOps that use this result as their leader pointer.
+    if (auto op1class = llvm::dyn_cast<equivalence::ClassOp>(op1))
+      assert(op1class.getLeader() == classOp.getResult());
+    continue;
     Operation *op2 = uniqueParents.lookup(op1);
 
     if (op2) {
@@ -265,29 +298,26 @@ void ClassOpUnionFind::repair(HashConsPatternRewriter &rewriter,
     if (op1 == op2)
       continue;
     // Collect eclass pairs before replacement
-    SmallVector<std::pair<equivalence::ClassOp, equivalence::ClassOp>>
-        eclassPairs;
-    for (auto [res1, res2] : llvm::zip(op1->getResults(), op2->getResults())) {
-      equivalence::ClassOp eclass1 = getClassOp(rewriter, res1);
-      equivalence::ClassOp eclass2 = getClassOp(rewriter, res2);
-      eclassPairs.emplace_back(eclass1, eclass2);
-    }
-
-    assert(rewriter.erase(op1).succeeded());
-    rewriter.replaceOp(op1, op2->getResults());
-    assert(rewriter.insert(op2).succeeded());
-
-    for (auto [eclass1, eclass2] : eclassPairs) {
-      if (eclass1 == eclass2) {
+    auto [keep, other] =
+        rewriter.lookup(op1) == op1 ? std::pair{op1, op2} : std::pair{op2, op1};
+    for (auto [resKeep, resOther] :
+         llvm::zip(keep->getResults(), other->getResults())) {
+      equivalence::ClassOp classKeep = getClassOpIfExists(resKeep);
+      equivalence::ClassOp classOther = getClassOpIfExists(resOther);
+      rewriter.replaceAllUsesWith(resOther, resKeep);
+      if (classKeep == nullptr || classOther == nullptr) {
+        continue;
+      }
+      if (classKeep != classOther) {
+        classUnion(rewriter, classKeep.getResult(), classOther.getResult());
+      } else {
         SmallPtrSet<Value, 8> seen;
         SmallVector<Value> uniqueOperands;
-        for (Value operand : eclass1->getOperands()) {
+        for (Value operand : classKeep.getInputs()) {
           if (seen.insert(operand).second)
             uniqueOperands.push_back(operand);
         }
-        eclass1->setOperands(uniqueOperands);
-      } else {
-        classUnion(rewriter, eclass1.getResult(), eclass2.getResult());
+        classKeep.getInputsMutable().assign(uniqueOperands);
       }
     }
   }
