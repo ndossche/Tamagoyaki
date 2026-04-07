@@ -1140,7 +1140,7 @@ public:
       if (originalOp->hasOneUse()) {
         OpOperand &use = *(originalOp->use_begin());
         if (ClassOp c = dyn_cast<ClassOp>(use.getOwner())) {
-          c.getMinCostIndex() = use.getOperandNumber();
+          c.setMinCostIndex(use.getOperandNumber());
         }
       }
     }
