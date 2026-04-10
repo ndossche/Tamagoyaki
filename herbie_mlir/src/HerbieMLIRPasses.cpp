@@ -1127,8 +1127,6 @@ public:
               .Case("herbie.sound_pow", 152)
               .Case("herbie.sound_log", 51)
               .Case("herbie.constant", 9)
-              // equivalence.class has zero cost (just routing)
-              .Case("equivalence.class", 0)
               .Default(-1);
       if (cost == -1)
         llvm::report_fatal_error("herbieCostFn: unknown op '" +
