@@ -181,12 +181,6 @@ void ClassOpUnionFind::queueClassUnion(ValueRange a, ValueRange b) {
 
 void ClassOpUnionFind::processPendingClassUnions(PatternRewriter &rewriter) {
   for (auto [a, b] : pendingClassUnions) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Unioning:\n\t";
-      a.dump();
-      llvm::dbgs() << "\t";
-      b.dump();
-    });
     classUnion(rewriter, a, b);
   }
   pendingClassUnions.clear();
@@ -197,11 +191,6 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
   LLVM_DEBUG({
     llvm::dbgs() << "Starting rebuild. Worklist contains " << worklist.size()
                  << " classes\n";
-    llvm::dbgs() << "Worklist: ";
-    for (auto rep : worklist) {
-      llvm::dbgs() << "\t";
-      rep.dump();
-    }
   });
 
   if (worklist.empty())
@@ -252,13 +241,6 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
 
   // Now that the worklist is fully drained, erase all dead eclasses that
   // were deferred during classUnion.
-  LLVM_DEBUG({
-    llvm::dbgs() << "Pending erases:\n";
-    for (equivalence::ClassOp dead : pendingErase) {
-      llvm::dbgs() << "\t";
-      dead.dump();
-    }
-  });
   SmallPtrSet<Operation *, 8> erased;
   for (equivalence::ClassOp dead : pendingErase) {
     if (erased.insert(dead.getOperation()).second)
