@@ -123,7 +123,7 @@ def ConcatOp : CombOp<"concat",
                                           std::optional<mlir::Location> loc,
                                           mlir::ValueRange operands,
                                           mlir::DictionaryAttr attrs,
-                                          mlir::OpaqueProperties properties,
+                                          mlir::PropertyRef properties,
                                           mlir::RegionRange regions,
                                           mlir::SmallVectorImpl<mlir::Type> &results);
   }];

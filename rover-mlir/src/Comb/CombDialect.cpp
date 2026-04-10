@@ -42,7 +42,7 @@ LogicalResult ConcatOp::inferReturnTypes(MLIRContext *context,
                                          std::optional<Location> loc,
                                          mlir::ValueRange operands,
                                          mlir::DictionaryAttr attrs,
-                                         mlir::OpaqueProperties properties,
+                                         mlir::PropertyRef properties,
                                          mlir::RegionRange regions,
                                          SmallVectorImpl<Type> &results) {
   unsigned resultWidth = getTotalWidth(operands);
