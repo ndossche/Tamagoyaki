@@ -51,7 +51,7 @@ def main():
         ) * 1000
 
     # Calculate speedup ratio
-    df["speedup"] = df["optimize_ms"] / df["herbie_total_ms"]
+    df["speedup"] = df["herbie_total_ms"] / df["optimize_ms"]
 
     geomean_slowdown = np.exp(np.log(df["speedup"]).mean())
 
@@ -88,10 +88,10 @@ def main():
     # Set up the plot with non-LaTeX styling and fonttype 42
     plt.rcParams["pdf.fonttype"] = 42
     plt.rcParams["ps.fonttype"] = 42
-    plt.rcParams["font.size"] = 7
+    plt.rcParams["font.size"] = 8
     plt.rcParams["axes.linewidth"] = 0.8
 
-    fig, ax = plt.subplots(figsize=(5.5, 2.0))
+    fig, ax = plt.subplots(figsize=(7.0, 1.8))
 
     # Set up bar positions
     x = np.arange(len(names))
@@ -136,20 +136,13 @@ def main():
     ]
 
     # Add speedup labels on top of bars
-    label_fontsize = 3
-    label_offset_factor = 1.15
+    label_fontsize = 6
+    label_offset_factor = 1.05
 
     for i, (bar_herbie, bar_eqsat) in enumerate(zip(bars_herbie_list, bars_eqsat_list)):
         height_herbie = bar_herbie.get_height()
         height_eqsat = bar_eqsat.get_height()
         speedup = speedups.iloc[i]
-
-        # Position label above the taller bar
-        max_height = max(height_herbie, height_eqsat)
-        label_y = max_height * label_offset_factor
-
-        # Center the label between the two bars
-        label_x = x[i] + 0.3
 
         # Format speedup as "XXXx" with appropriate precision
         if speedup >= 10:
@@ -157,14 +150,37 @@ def main():
         else:
             speedup_str = f"{speedup:.1f}×"
 
+        # Place the label flat if the tamagoyaki bar is sufficiently taller
+        # (in log scale) than both bars of the next benchmark.
+        if i + 1 < len(bars_herbie_list):
+            next_herbie_height = bars_herbie_list[i + 1].get_height()
+            next_eqsat_height = bars_eqsat_list[i + 1].get_height()
+            log_gap = min(
+                np.log10(height_eqsat) - np.log10(next_herbie_height),
+                np.log10(height_eqsat) - np.log10(next_eqsat_height),
+            )
+        else:
+            log_gap = np.inf
+        if log_gap > 0.5:
+            label_x = x[i]
+            label_y = height_eqsat * label_offset_factor
+            rotation = 0
+            label_ha = "left"
+        else:
+            label_x = x[i] + 0.3
+            max_height = max(height_herbie, height_eqsat)
+            label_y = max_height * label_offset_factor
+            rotation = 60
+            label_ha = "center"
+
         ax.text(
             label_x,
             label_y,
             speedup_str,
-            ha="center",
+            ha=label_ha,
             va="bottom",
             fontsize=label_fontsize,
-            rotation=60,
+            rotation=rotation,
             color=color_eqsat,
             alpha=1.0,
         )
@@ -185,10 +201,11 @@ def main():
     )
 
     ax.set_xticks(x)
-    ax.set_xticklabels(names, rotation=35, ha="right", fontsize=6)
+    ax.set_xticklabels(names, rotation=35, ha="right", fontsize=8)
 
     # Smaller tick labels
-    ax.tick_params(axis="y", labelsize=6)
+    ax.tick_params(axis="y", labelsize=8)
+    ax.tick_params(axis="x", pad=-1)
 
     # Legend positioning
     ax.legend(
@@ -196,7 +213,7 @@ def main():
         loc="upper right",
         bbox_to_anchor=(1.0, 1.2),
         frameon=False,
-        fontsize=6,
+        fontsize=8,
         ncol=2,
     )
 
@@ -206,9 +223,7 @@ def main():
 
     # Add some padding
     plt.tight_layout()
-    plt.subplots_adjust(
-        bottom=0.45, top=0.88
-    )  # Add space at bottom and top for legend
+    plt.subplots_adjust(bottom=0.45, top=0.88)  # Add space at bottom and top for legend
 
     # Save as high-resolution PDF
     plt.savefig(args.output, dpi=300, bbox_inches="tight", pad_inches=0)
