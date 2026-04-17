@@ -1,7 +1,5 @@
 # datapath library
 
-include(${PROJECT_SOURCE_DIR}/cmake/TableGenHelpers.cmake)
-
 set(COMB_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Comb)
 set(DATAPATH_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Datapath/)
 
@@ -10,13 +8,6 @@ set(DATAPATH_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Datapath/)
 # ============================================================================
 set(DATAPATH_SOURCES
   DatapathDialect.cpp
-)
-
-message(STATUS "DATAPATH_GENERATED_HEADERS: ${DATAPATH_GENERATED_HEADERS}")
-
-set_source_object_depends(
-  SOURCES ${DATAPATH_SOURCES}
-  DEPENDS ${DATAPATH_GENERATED_HEADERS}
 )
 
 add_mlir_library(DatapathDialect
@@ -29,7 +20,6 @@ add_mlir_library(DatapathDialect
 
   DEPENDS
   MLIRDatapathIncGen
-  copy_datapath_generated_td_to_src_include
 
   LINK_LIBS PUBLIC
   MLIRIR
@@ -41,5 +31,7 @@ add_mlir_library(DatapathDialect
 )
 
 target_include_directories(DatapathDialect PUBLIC ${DATAPATH_INCLUDE_DIR})
+target_include_directories(DatapathDialect PUBLIC ${CMAKE_BINARY_DIR}/rover-mlir/include/Datapath)
 target_include_directories(DatapathDialect PUBLIC ${COMB_INCLUDE_DIR})
+target_include_directories(DatapathDialect PUBLIC ${CMAKE_BINARY_DIR}/rover-mlir/include/Comb)
 

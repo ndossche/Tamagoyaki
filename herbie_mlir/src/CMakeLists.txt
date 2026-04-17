@@ -1,7 +1,5 @@
 # herbie-mlir library
 
-include(${PROJECT_SOURCE_DIR}/cmake/TableGenHelpers.cmake)
-
 set(HERBIE_MLIR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
 # ============================================================================
@@ -18,11 +16,6 @@ set(HERBIE_MLIR_SOURCES
   LocalError.cpp
 )
 
-set_source_object_depends(
-  SOURCES ${HERBIE_MLIR_SOURCES}
-  DEPENDS ${HERBIE_MLIR_GENERATED_HEADERS}
-)
-
 add_mlir_library(herbieMLIR
   ${HERBIE_MLIR_SOURCES}
   PARTIAL_SOURCES_INTENDED
@@ -32,7 +25,6 @@ add_mlir_library(herbieMLIR
 
   DEPENDS
   MLIRHerbieMLIRIncGen
-  copy_herbiemlir_generated_td_to_src_include
 
   LINK_LIBS PUBLIC
   MLIRIR
@@ -46,6 +38,7 @@ add_mlir_library(herbieMLIR
 )
 
 target_include_directories(herbieMLIR PUBLIC ${HERBIE_MLIR_INCLUDE_DIR})
+target_include_directories(herbieMLIR PUBLIC ${CMAKE_BINARY_DIR}/herbie_mlir/include)
 
 # Ensure GMP/MPFR headers are available before compiling.
 # ExternalProject dependencies don't propagate through INTERFACE/IMPORTED

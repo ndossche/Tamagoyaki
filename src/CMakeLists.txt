@@ -1,15 +1,8 @@
 # Dialect libraries and tamagoyaki-opt executable
 
-include(${PROJECT_SOURCE_DIR}/cmake/TableGenHelpers.cmake)
-
 # ============================================================================
 # Equivalence Dialect Library
 # ============================================================================
-set_source_object_depends(
-  SOURCES EquivalenceDialect.cpp
-  DEPENDS ${EQUIVALENCE_GENERATED_HEADERS}
-)
-
 add_mlir_dialect_library(MLIREquivalence
   EquivalenceDialect.cpp
   PARTIAL_SOURCES_INTENDED
@@ -19,7 +12,6 @@ add_mlir_dialect_library(MLIREquivalence
 
   DEPENDS
   MLIREquivalenceIncGen
-  copy_equivalence_generated_td_to_src_include
 
   LINK_LIBS PUBLIC
   MLIRIR
@@ -46,11 +38,6 @@ add_mlir_library(TamagoyakiTiming
 # ============================================================================
 # Ematch Dialect Library
 # ============================================================================
-set_source_object_depends(
-  SOURCES EmatchDialect.cpp
-  DEPENDS ${EMATCH_GENERATED_HEADERS}
-)
-
 add_mlir_dialect_library(MLIREmatch
   EmatchDialect.cpp
   Utils/MutableScopedHashTable.cpp
@@ -63,7 +50,6 @@ add_mlir_dialect_library(MLIREmatch
 
   DEPENDS
   MLIREmatchIncGen
-  copy_ematch_generated_td_to_src_include
 
   LINK_LIBS PUBLIC
   MLIRIR
@@ -97,18 +83,11 @@ set(TAMAGOYAKI_OPT_LIBS
   TamagoyakiTiming
 )
 
-set_source_object_depends(
-  SOURCES tamagoyaki-opt.cpp
-  DEPENDS ${EQUIVALENCE_GENERATED_HEADERS} ${EMATCH_GENERATED_HEADERS}
-)
-
 add_llvm_executable(tamagoyaki-opt tamagoyaki-opt.cpp)
 llvm_update_compile_flags(tamagoyaki-opt)
 target_link_libraries(tamagoyaki-opt PRIVATE ${TAMAGOYAKI_OPT_LIBS})
 add_dependencies(tamagoyaki-opt
   MLIREquivalenceIncGen
   MLIREmatchIncGen
-  copy_equivalence_generated_td_to_src_include
-  copy_ematch_generated_td_to_src_include
 )
 mlir_check_all_link_libraries(tamagoyaki-opt)

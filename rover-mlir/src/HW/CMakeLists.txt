@@ -1,6 +1,4 @@
-# comb library
-
-include(${PROJECT_SOURCE_DIR}/cmake/TableGenHelpers.cmake)
+# HW library
 
 set(HW_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../include/HW/)
 
@@ -9,13 +7,6 @@ set(HW_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../include/HW/)
 # ============================================================================
 set(HW_SOURCES
   HWDialect.cpp
-)
-
-message(STATUS "HW_GENERATED_HEADERS: ${HW_GENERATED_HEADERS}")
-
-set_source_object_depends(
-  SOURCES ${HW_SOURCES}
-  DEPENDS ${HW_GENERATED_HEADERS}
 )
 
 add_mlir_library(HWDialect
@@ -27,7 +18,6 @@ add_mlir_library(HWDialect
 
   DEPENDS
   MLIRHWIncGen
-  copy_comb_generated_td_to_src_include
 
   LINK_LIBS PUBLIC
   MLIRIR
@@ -39,3 +29,4 @@ add_mlir_library(HWDialect
 )
 
 target_include_directories(HWDialect PUBLIC ${HW_INCLUDE_DIR})
+target_include_directories(HWDialect PUBLIC ${CMAKE_BINARY_DIR}/rover-mlir/include/HW)

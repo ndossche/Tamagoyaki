@@ -7,10 +7,6 @@
 ##===----------------------------------------------------------------------===//
 
 add_subdirectory(Comb)
-set(COMB_GENERATED_HEADERS ${COMB_GENERATED_HEADERS} PARENT_SCOPE)
 add_subdirectory(Datapath)
-set(DATAPATH_GENERATED_HEADERS ${DATAPATH_GENERATED_HEADERS} PARENT_SCOPE)
 add_subdirectory(HW)
-set(HW_GENERATED_HEADERS ${HW_GENERATED_HEADERS} PARENT_SCOPE)
 add_subdirectory(Rover)
-set(ROVER_GENERATED_HEADERS ${ROVER_GENERATED_HEADERS} PARENT_SCOPE)
