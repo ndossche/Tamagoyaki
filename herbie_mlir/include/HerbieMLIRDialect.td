@@ -173,24 +173,6 @@ def HerbieMLIR_SoundLogOp : HerbieMLIR_Op<"sound_log", [Pure, SameOperandsAndRes
 // HerbieMLIR Passes
 //===----------------------------------------------------------------------===//
 
-def HerbieMLIRTemplatePass : Pass<"herbie-mlir-template", "::mlir::ModuleOp"> {
-  let summary = "Template pass for HerbieMLIR.";
-  let description = [{
-    A template pass demonstrating the herbie-mlir pass infrastructure.
-  }];
-  let dependentDialects = ["::mlir::func::FuncDialect"];
-}
-
-
-def RivalEvaluatePass : Pass<"rival-evaluate", "::mlir::ModuleOp"> {
-  let summary = "Compile and evaluate functions using Rival interval arithmetic.";
-  let description = [{
-    Compiles functions to Rival expressions using RivalCompileableInterface
-    and evaluates them with test inputs.
-  }];
-  let dependentDialects = ["::mlir::func::FuncDialect", "::mlir::arith::ArithDialect"];
-}
-
 def IntervalSearchPass : Pass<"interval-search", "::mlir::func::FuncOp"> {
   let summary = "Find valid sampling regions via interval subdivision.";
   let description = [{
@@ -219,18 +201,6 @@ def IntervalSearchPass : Pass<"interval-search", "::mlir::func::FuncOp"> {
     Option<"emitStatistics", "emit-statistics", "bool", "true",
            "Whether to emit statistics as operation attributes">
   ];
-}
-
-def HerbiePrintTopoSort : Pass<"herbie-print-toposort", "::mlir::ModuleOp"> {
-  let summary = "Prints topological ordering of selected operations in equivalence.graph.";
-  let description = [{
-    Computes a topological sort of operations in each equivalence.graph op,
-    considering only the operations that correspond to the min_cost_index
-    of equivalence.class operations. Operations used by a class but not
-    selected by min_cost_index are treated as "ready" (ignored in ordering).
-    Prints the resulting order to stderr without modifying the IR.
-  }];
-  let dependentDialects = ["::mlir::equivalence::EquivalenceDialect"];
 }
 
 def HerbieOptimizePass : Pass<"herbie-optimize", "::mlir::ModuleOp"> {
