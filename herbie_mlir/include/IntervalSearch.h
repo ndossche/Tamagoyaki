@@ -171,14 +171,10 @@ struct SearchSpace {
 // ============================================================================
 
 struct SamplingTable {
-  double validFraction;        // Fraction of space confirmed evaluable
-  double invalidFraction;      // Fraction confirmed unevaluable
-  double unknownFraction;      // Fraction still undetermined
-  double preconditionFraction; // Fraction excluded by precondition
-
-  SamplingTable()
-      : validFraction(0), invalidFraction(0), unknownFraction(0),
-        preconditionFraction(0) {}
+  double validFraction{};        // Fraction of space confirmed evaluable
+  double invalidFraction{};      // Fraction confirmed unevaluable
+  double unknownFraction{};      // Fraction still undetermined
+  double preconditionFraction{}; // Fraction excluded by precondition
 };
 
 // ============================================================================
