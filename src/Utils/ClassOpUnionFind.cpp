@@ -288,61 +288,65 @@ void ClassOpUnionFind::repair(HashConsPatternRewriter &rewriter,
     bool inserted = rewriter.insert(keep).succeeded();
     assert(inserted);
 
-    for (auto [resOther, resKeep] :
-         llvm::zip_equal(other->getResults(), keep->getResults())) {
-      // Collect eclass pairs before replacement
-      equivalence::ClassOp classKeep = getClassOpIfExists(resKeep);
-      equivalence::ClassOp classOther = getClassOpIfExists(resOther);
-
-      if (classKeep && classOther) {
-        // Case 1: both values have a class — replace other's results with
-        // keep's results, then union the two classes.
-        rewriter.replaceAllUsesWith(resOther, resKeep);
-        // The replaceAllUsesWith above rewrote resOther -> resKeep inside
-        // classOther's input list.  That means resKeep is now an input of
-        // *both* classKeep and classOther, breaking the single-class-
-        // membership invariant.  Remove the stale occurrence from
-        // classOther so that resKeep only belongs to classKeep.
-        if (classKeep != classOther) {
-          auto otherInputs = classOther.getInputsMutable();
-          SmallVector<Value> filtered;
-          for (Value v : classOther.getInputs()) {
-            if (v != resKeep)
-              filtered.push_back(v);
-          }
-          if (filtered.size() != otherInputs.size())
-            otherInputs.assign(filtered);
-          classUnion(rewriter, classKeep.getResult(), classOther.getResult());
-        } else {
-          SmallPtrSet<Value, 8> seen;
-          SmallVector<Value> uniqueOperands;
-          for (Value operand : classKeep.getInputs()) {
-            if (seen.insert(operand).second)
-              uniqueOperands.push_back(operand);
-          }
-          classKeep.getInputsMutable().assign(uniqueOperands);
-        }
-      } else if (classKeep) {
-        // Case 2: only keep has a class — redirect other's results to the
-        // class representative rather than the raw result.
-        rewriter.replaceAllUsesWith(resOther, classKeep.getResult());
-      } else if (classOther) {
-        // Case 3: only other has a class — redirect keep's non-ClassOp users
-        // through classOther first, then retarget classOther from resOther to
-        // resKeep.
-        rewriter.replaceUsesWithIf(resKeep, classOther.getResult(),
-                                   [&](OpOperand &operand) {
-                                     return operand.getOwner() != classOther;
-                                   });
-        rewriter.replaceAllUsesWith(resOther, resKeep);
-      } else {
-        // Case 4: neither has a class — simple replacement.
-        rewriter.replaceAllUsesWith(resOther, resKeep);
-      }
-    }
+    mergeResults(rewriter, other, keep);
     // Don't just erase the op, instead, replace. Listeners such as the
     // OriginalOpTracker used in herbie-mlir should be able to tell what
     // `other` is replaced with:
     rewriter.replaceOp(other, keep);
+  }
+}
+
+void ClassOpUnionFind::mergeResults(HashConsPatternRewriter &rewriter,
+                                    Operation *other, Operation *keep) {
+  for (auto [resOther, resKeep] :
+       llvm::zip_equal(other->getResults(), keep->getResults())) {
+    // Collect eclass pairs before replacement
+    equivalence::ClassOp classKeep = getClassOpIfExists(resKeep);
+    equivalence::ClassOp classOther = getClassOpIfExists(resOther);
+
+    if (classKeep && classOther) {
+      // Case 1: both values have a class — replace other's results with
+      // keep's results, then union the two classes.
+      rewriter.replaceAllUsesWith(resOther, resKeep);
+      // The replaceAllUsesWith above rewrote resOther -> resKeep inside
+      // classOther's input list.  That means resKeep is now an input of
+      // *both* classKeep and classOther, breaking the single-class-
+      // membership invariant.  Remove the stale occurrence from
+      // classOther so that resKeep only belongs to classKeep.
+      if (classKeep != classOther) {
+        auto otherInputs = classOther.getInputsMutable();
+        SmallVector<Value> filtered;
+        for (Value v : classOther.getInputs()) {
+          if (v != resKeep)
+            filtered.push_back(v);
+        }
+        if (filtered.size() != otherInputs.size())
+          otherInputs.assign(filtered);
+        classUnion(rewriter, classKeep.getResult(), classOther.getResult());
+      } else {
+        SmallPtrSet<Value, 8> seen;
+        SmallVector<Value> uniqueOperands;
+        for (Value operand : classKeep.getInputs()) {
+          if (seen.insert(operand).second)
+            uniqueOperands.push_back(operand);
+        }
+        classKeep.getInputsMutable().assign(uniqueOperands);
+      }
+    } else if (classKeep) {
+      // Case 2: only keep has a class — redirect other's results to the
+      // class representative rather than the raw result.
+      rewriter.replaceAllUsesWith(resOther, classKeep.getResult());
+    } else if (classOther) {
+      // Case 3: only other has a class — redirect keep's non-ClassOp users
+      // through classOther first, then retarget classOther from resOther to
+      // resKeep.
+      rewriter.replaceUsesWithIf(
+          resKeep, classOther.getResult(),
+          [&](OpOperand &operand) { return operand.getOwner() != classOther; });
+      rewriter.replaceAllUsesWith(resOther, resKeep);
+    } else {
+      // Case 4: neither has a class — simple replacement.
+      rewriter.replaceAllUsesWith(resOther, resKeep);
+    }
   }
 }

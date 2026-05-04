@@ -77,6 +77,12 @@ public:
   /// a merged ClassOp.
   void repair(HashConsPatternRewriter &rewriter, equivalence::ClassOp classOp);
 
+  /// Merge the results of two duplicate parent operations
+  /// (`other` -> `keep`), reconciling their owning ClassOps if any.
+  /// Used by `repair` when collapsing duplicate users of a ClassOp.
+  void mergeResults(HashConsPatternRewriter &rewriter, mlir::Operation *other,
+                    mlir::Operation *keep);
+
   /// Worklist of ClassOps whose parents potentially need to be repaired.
   /// Entries may become stale (operands cleared) if they were merged into
   /// another class; such entries are skipped during rebuild.
