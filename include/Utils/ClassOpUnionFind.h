@@ -73,20 +73,38 @@ public:
   /// Returns false when the worklist was empty, otherwise true.
   bool rebuild(HashConsPatternRewriter &rewriter);
 
-  /// Repair e-graph by potentially deduplicating the parents of
-  /// a merged ClassOp.
-  void repair(HashConsPatternRewriter &rewriter, equivalence::ClassOp classOp);
+  /// Create a hash-cons scope for the given graph's region and insert every
+  /// non-ClassOp operation into it. Duplicate operations encountered during
+  /// insertion are collected and merged via `mergeResults`, mirroring the
+  /// pair-collect-then-process pattern used by `repair`.
+  void hashconsGraph(HashConsPatternRewriter &rewriter,
+                     equivalence::GraphOp graph);
+
+  /// Repair e-graph by potentially deduplicating the parents (=users) of
+  /// the given operation.  When `op` is a ClassOp this dedups users of the
+  /// class result; for any other operation it dedups users of `op`'s
+  /// results.  A `keep` operation pushed to the worklist by `mergeResults`
+  /// is repaired this way so that newly redirected users that became
+  /// identical can be collapsed.
+  void repair(HashConsPatternRewriter &rewriter, mlir::Operation *op);
 
   /// Merge the results of two duplicate parent operations
   /// (`other` -> `keep`), reconciling their owning ClassOps if any.
   /// Used by `repair` when collapsing duplicate users of a ClassOp.
+  /// After redirecting `other`'s users onto `keep`, `keep` is pushed onto
+  /// the worklist so that any users that became identical are repaired in
+  /// the next rebuild iteration.
   void mergeResults(HashConsPatternRewriter &rewriter, mlir::Operation *other,
                     mlir::Operation *keep);
 
-  /// Worklist of ClassOps whose parents potentially need to be repaired.
-  /// Entries may become stale (operands cleared) if they were merged into
-  /// another class; such entries are skipped during rebuild.
-  SmallVector<equivalence::ClassOp> worklist;
+  /// Worklist of operations whose parents (=users) potentially need to be
+  /// repaired.  Entries may be ClassOps (added by `classUnion` whose
+  /// canonical leader needs to absorb the merged class) or arbitrary
+  /// operations (added by `mergeResults` because the redirected users may
+  /// have become identical).  Entries may become stale (detached or
+  /// erased) before being processed; such entries are skipped during
+  /// rebuild via an `op->getBlock()` check.
+  SmallVector<mlir::Operation *> worklist;
 
 private:
   SmallVector<equivalence::ClassOp> pendingErase;
