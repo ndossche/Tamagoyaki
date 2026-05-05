@@ -102,6 +102,22 @@ LogicalResult ClassOp::verify() {
   return success();
 }
 
+LogicalResult GraphOp::verify() {
+  auto walkResult = getBody().walk([&](Operation *op) -> WalkResult {
+    if (isa<YieldOp>(op))
+      return WalkResult::advance();
+    if (!op->hasTrait<OpTrait::AlwaysSpeculatableImplTrait>() &&
+        !op->hasAttrOfType<UnitAttr>("equivalence.allow_unspeculatable")) {
+      return op->emitOpError(
+          "operation in equivalence.graph region must be "
+          "AlwaysSpeculatable or carry the "
+          "`equivalence.allow_unspeculatable` unit attribute");
+    }
+    return WalkResult::advance();
+  });
+  return failure(walkResult.wasInterrupted());
+}
+
 //===----------------------------------------------------------------------===//
 // Equivalence passes
 //===----------------------------------------------------------------------===//
