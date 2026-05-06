@@ -106,11 +106,11 @@ LogicalResult GraphOp::verify() {
   auto walkResult = getBody().walk([&](Operation *op) -> WalkResult {
     if (isa<YieldOp>(op))
       return WalkResult::advance();
-    if (!op->hasTrait<OpTrait::AlwaysSpeculatableImplTrait>() &&
+    if (!mlir::isSpeculatable(op) &&
         !op->hasAttrOfType<UnitAttr>("equivalence.allow_unspeculatable")) {
       return op->emitOpError(
           "operation in equivalence.graph region must be "
-          "AlwaysSpeculatable or carry the "
+          "speculatable or carry the "
           "`equivalence.allow_unspeculatable` unit attribute");
     }
     return WalkResult::advance();
