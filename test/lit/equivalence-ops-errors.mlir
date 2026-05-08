@@ -39,7 +39,7 @@ func.func @test_class_operand_multiple_users() {
 // Test: graph region cannot contain operations that are not AlwaysSpeculatable
 func.func @test_graph_unspeculatable_op() -> i32 {
     %0 = equivalence.graph -> (i32) {
-        // expected-error@+1 {{operation in equivalence.graph region must be AlwaysSpeculatable}}
+        // expected-error@+1 {{operation in equivalence.graph region must be speculatable or carry the `equivalence.allow_unspeculatable` unit attribute}}
         %1 = "test.op"() : () -> (i32)
         equivalence.yield %1 : i32
     }
