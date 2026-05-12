@@ -2,10 +2,17 @@ cmake_minimum_required(VERSION 3.20.0)
 project(mmlir LANGUAGES CXX C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+  set(CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES 
+      ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
+endif()
+
 
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
+
+include(GNUInstallDirs)
 
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 if(ENABLE_ASAN)
@@ -53,6 +60,10 @@ endif()
 # rover-mlir subproject (optional, can be disabled)
 option(BUILD_ROVER_MLIR "Build rover-mlir subproject" ON)
 if(BUILD_ROVER_MLIR)
+  find_package(CIRCT REQUIRED CONFIG)
+  message(STATUS "Using CIRCTConfig.cmake in: ${CIRCT_DIR}")
+  list(APPEND CMAKE_MODULE_PATH "${CIRCT_CMAKE_DIR}")
+  include_directories(${CIRCT_INCLUDE_DIRS})
   add_subdirectory(rover-mlir)
 endif()
 

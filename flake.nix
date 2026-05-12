@@ -1,27 +1,26 @@
 {
-  description = "Tamagoyaki – reproducible evaluation environment";
+  description = "Nix flake for building Tamagoyaki and related tools (herbie-mlir, rover-mlir, cranelift-mlir)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     flake-utils.url = "github:numtide/flake-utils";
 
-    rust-overlay.url = "github:oxalica/rust-overlay";
-    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
-    pyproject-nix = {
-      url = "github:pyproject-nix/pyproject.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    uv2nix = {
-      url = "github:pyproject-nix/uv2nix";
-      inputs.pyproject-nix.follows = "pyproject-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    pyproject-build-systems = {
-      url = "github:pyproject-nix/build-system-pkgs";
-      inputs.pyproject-nix.follows = "pyproject-nix";
-      inputs.uv2nix.follows = "uv2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
+    # Provides prebuilt LLVM + MLIR (matching the CIRCT pin).
+    circt-nix = {
+      url = "github:dtzSiFive/circt-nix";
+      inputs.circt-src.url = "github:llvm/circt/firtool-1.146.0";
+      inputs.llvm-submodule-src = {
+        type = "github";
+        owner = "llvm";
+        repo = "llvm-project";
+        rev = "90c90a41bed5ba2e4c7b724ecfd533f6f3f7d204";
+        flake = false;
+      };
     };
   };
 
@@ -31,9 +30,7 @@
       nixpkgs,
       flake-utils,
       rust-overlay,
-      pyproject-nix,
-      uv2nix,
-      pyproject-build-systems,
+      circt-nix,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -44,109 +41,85 @@
         };
         lib = pkgs.lib;
 
-        # ---------- Python env via uv2nix ----------
-        python = pkgs.python313;
+        # ---------- Slimmed LLVM/MLIR from circt-nix ----------
+        extraLlvmCmakeFlags = [
+          # LLVM_TARGETS_TO_BUILD=host is already on by default
+          # (hostOnly = true in circt-nix/llvm.nix), no need to repeat.
+          "-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="
 
-        workspace = uv2nix.lib.workspace.loadWorkspace {
-          workspaceRoot = ./.;
-        };
+          # Strip the fat
+          "-DLLVM_ENABLE_BACKTRACES=OFF"
+          "-DLLVM_INCLUDE_BENCHMARKS=OFF"
+          "-DLLVM_INCLUDE_EXAMPLES=OFF"
+          "-DLLVM_INCLUDE_TESTS=OFF"
+          "-DLLVM_INCLUDE_DOCS=OFF"
+          "-DLLVM_BUILD_DOCS=OFF"
+          "-DLLVM_ENABLE_OCAMLDOC=OFF"
+          "-DLLVM_ENABLE_BINDINGS=OFF"
+          "-DLLVM_ENABLE_TERMINFO=OFF"
+          "-DLLVM_ENABLE_LIBXML2=OFF"
+          "-DLLVM_ENABLE_ZSTD=OFF"
+          "-DLLVM_ENABLE_LIBEDIT=OFF"
+          # NOTE: LLVM_INSTALL_UTILS is left at its default (ON) so the lit
+          # helpers (FileCheck, count, not) end up in $out/bin. Our test
+          # suites in cranelift-mlir/, herbie_mlir/ and test/ invoke them
+          # via lit's config.llvm_tools_dir, which resolves to
+          # ${LLVM_DIR}/../../bin. With INSTALL_UTILS=OFF those binaries
+          # are built but never copied to the install prefix, so lit
+          # aborts with "Did not find FileCheck".
+        ];
 
-        # Prefer wheels — critical for the MLIR wheel, which we don't
-        # want Nix trying to build from source.
-        pyOverlay = workspace.mkPyprojectOverlay {
-          sourcePreference = "wheel";
-        };
+        libllvm = (circt-nix.packages.${system}.libllvm.override {
+          enableAssertions = false;   # → -DLLVM_ENABLE_ASSERTIONS=OFF
+          # hostOnly defaults to true; explicit for clarity.
+          hostOnly = true;
+          # Build & link against a single libLLVM.so. This collapses
+          # every LLVM/MLIR tool (mlir-opt, llc, etc.) from hundreds of
+          # MB of statically-linked binary down to a few MB that just
+          # dlopen libLLVM.so — the dominant slimming for the cached
+          # closure. Sets LLVM_BUILD_LLVM_DYLIB=ON + LLVM_LINK_LLVM_DYLIB=ON.
+          enableSharedLibraries = true;
+        }).overrideAttrs (old: {
+          cmakeFlags = (old.cmakeFlags or []) ++ extraLlvmCmakeFlags;
+        });
 
-        # uv2nix can't auto-pick a wheel for `mlir-wheel`: the lockfile lists
-        # `py3-none-<platform>` wheels whose platform tags (e.g.
-        # `macosx_12_0_arm64`, plain `linux_x86_64`) aren't recognised as
-        # compatible by pyproject.nix's wheel selector. Provide it manually.
-        mlirWheelOverlay = final: prev: {
-          mlir-wheel =
-            let
-              base = "https://github.com/llvm/eudsl/releases/download/llvm";
-              ver = "20260405+17ed1e6c4";
-              sources = {
-                "aarch64-linux" = {
-                  filename = "mlir_wheel-${ver}-py3-none-linux_aarch64.whl";
-                  hash = "sha256-bUv2LcU+2xfHzNReftK6aAp1sd7yDRwCsCXWa8vnbL8=";
-                };
-                "x86_64-linux" = {
-                  filename = "mlir_wheel-${ver}-py3-none-linux_x86_64.whl";
-                  hash = "sha256-hs28VCaxTiw3fp0EqmuPzMNQwvNkKiq0aNvVCDcGddU=";
-                };
-                "aarch64-darwin" = {
-                  filename = "mlir_wheel-${ver}-py3-none-macosx_12_0_arm64.whl";
-                  hash = "sha256-C2XmD9+bNatYd/wrY/9JIjx9mMv/FMpRJMsUCIw5V1M=";
-                };
-              };
-              src =
-                sources.${pkgs.stdenv.hostPlatform.system}
-                  or (throw "mlir-wheel: no wheel for ${pkgs.stdenv.hostPlatform.system}");
-            in
-            pkgs.stdenv.mkDerivation {
-              pname = "mlir-wheel";
-              version = ver;
-              format = "wheel";
+        mlir = (circt-nix.packages.${system}.mlir.override {
+          enableAssertions = false;
+          hostOnly = true;
+          # Same reasoning as libllvm above; applied to the MLIR tools.
+          enableSharedLibraries = true;
+        }).overrideAttrs (old: {
+          cmakeFlags = (old.cmakeFlags or []) ++ [
+            "-DLLVM_INCLUDE_TESTS=OFF"
+            "-DMLIR_INCLUDE_TESTS=OFF"
+            "-DMLIR_INCLUDE_INTEGRATION_TESTS=OFF"
+          ];
+        });
 
-              src = pkgs.fetchurl {
-                url = "${base}/${src.filename}";
-                inherit (src) hash;
-                name = src.filename;
-              };
-
-              # The pyproject-wheel-dist-hook sets `buildPhase` (it links the
-              # wheel into ./dist for the install hook) and also sets
-              # `dontUnpack=1`, so we must NOT set `dontBuild` / `dontUnpack`
-              # ourselves — doing so would skip the dist-creation step and
-              # break the install hook (`pushd: dist: No such file or directory`).
-              nativeBuildInputs = [
-                final.pyprojectWheelHook
-              ]
-              ++ lib.optional pkgs.stdenv.isLinux pkgs.autoPatchelfHook;
-
-              buildInputs = lib.optionals pkgs.stdenv.isLinux (
-                with pkgs;
-                [
-                  stdenv.cc.cc.lib
-                  zlib
-                ]
-              );
-
-              dontStrip = true;
-
-              passthru = {
-                dependencies = { };
-                optional-dependencies = { };
-                dependency-groups = { };
-                format = "wheel";
-              };
-            };
-        };
-
-        pythonSet = (pkgs.callPackage pyproject-nix.build.packages { inherit python; }).overrideScope (
-          lib.composeManyExtensions [
-            pyproject-build-systems.overlays.default
-            pyOverlay
-            mlirWheelOverlay
-            (final: prev: {
-              connection-pool = prev.connection-pool.overrideAttrs (old: {
-                nativeBuildInputs =
-                  (old.nativeBuildInputs or [ ])
-                  ++ final.resolveBuildSystem {
-                    setuptools = [ ];
-                    wheel = [ ];
-                  };
-              });
-            })
-          ]
-        );
-
-        # Build-time virtualenv: only the deps needed to compile against MLIR.
-        pythonBuildEnv = pythonSet.mkVirtualEnv "tamagoyaki-build-env" workspace.deps.default;
+        circt = (circt-nix.packages.${system}.circt.override {
+          # Rebuild circt against our slimmed libllvm/mlir so the
+          # closure doesn't end up with two copies of LLVM/MLIR.
+          inherit libllvm mlir;
+          enableSlang   = false;
+          enableLLHD    = false;
+          enableOrTools = false;
+          enableDocs    = false;
+          enableAssertions = false;
+          withVerilator = false;
+        }).overrideAttrs (old: {
+          patches =
+            (lib.filter
+              (p: !lib.hasInfix "circt-mlir-tblgen-path" (toString p))
+              (old.patches or []))
+            ++ [ ./nix/patches/circt-mlir-tblgen-path.patch ];
+          cmakeFlags = (old.cmakeFlags or []) ++ [
+            "-DCIRCT_INCLUDE_TESTS=OFF"
+          ];
+          doCheck = false;
+        });
 
         # ---------- Rival (Rust) ----------
-        rustToolchain = pkgs.rust-bin.stable."1.91.0".default;
+        rustToolchain = pkgs.rust-bin.stable."1.91.0".minimal;
 
         rustPlatform = pkgs.makeRustPlatform {
           cargo = rustToolchain;
@@ -156,7 +129,7 @@
         rivalSrc = pkgs.fetchFromGitHub {
           owner = "herbie-fp";
           repo = "rival3";
-          rev = "8bc5eca5079497a41d37e20a66c833080c92c0ed"; # pin a commit
+          rev = "8bc5eca5079497a41d37e20a66c833080c92c0ed";
           hash = "sha256-fnIvGCaiHqCM+ANwfLSQMTNQXw4VAewXeXU8iWePx9Y=";
         };
 
@@ -175,9 +148,6 @@
           cargoRoot = "rival3-ffi";
           buildAndTestSubdir = "rival3-ffi";
 
-          # Use the lockfile shipped inside rival3-ffi/. We also need
-          # outputHashes only if any deps come from git; rival3-ffi's
-          # lock is registry-only, so a plain cargoHash suffices.
           cargoHash = "sha256-0KD5zCJotpWKooKLvLZF3sVkPJBVec5lQ4L8CNQzrJo=";
 
           doCheck = false;
@@ -226,75 +196,25 @@
             pkg-config
             git
             m4
-            lit # llvm-lit, required by add_lit_testsuite in herbie_mlir/test
-            pythonBuildEnv # gives configure-time access to the wheel
+            lit
           ];
 
-          # GMP/MPFR are required to link against librival3_ffi.a (which
-          # was built with gmp-mpfr-sys/use-system-libs). The herbie_mlir
-          # CMakeLists also prefers these system copies over building from
-          # source.
-          buildInputs = with pkgs; [
-            gmp
-            mpfr
-            libmpc
+          buildInputs = [
+            mlir.dev
+            libllvm.dev
+            circt.dev
+            circt.lib
+          ] ++ (with pkgs; [ gmp mpfr libmpc ]);
+
+          cmakeFlags = [
+            "-DMLIR_DIR=${mlir.dev}/lib/cmake/mlir"
+            "-DLLVM_DIR=${libllvm.dev}/lib/cmake/llvm"
+            "-DCIRCT_DIR=${circt.dev}/lib/cmake/circt"
+            "-DLLVM_EXTERNAL_LIT=${pkgs.lit}/bin/lit"
+            "-DRIVAL_PREBUILT_LIB=${rival-ffi}/lib/librival3_ffi.a"
+            "-DRIVAL_PREBUILT_INCLUDE=${rival-ffi}/include"
+            "-DBUILD_SHARED_LIBS=ON"
           ];
-
-          # Compute MLIR_DIR from the installed wheel and feed it to CMake.
-          # The exact subpath inside the wheel is wheel-specific; the snippet
-          # below covers the common LLVM-published layout. Verify with:
-          #   nix shell .#pythonEnv -c python -c 'import mlir, os; print(os.path.dirname(mlir.__file__))'
-          preConfigure = ''
-            MLIR_PKG_DIR="$(${pythonBuildEnv}/bin/python -c 'import mlir_wheel, os; print(os.path.dirname(mlir_wheel.__file__))')"
-            for cand in \
-              "$MLIR_PKG_DIR/lib/cmake/mlir" \
-              "$MLIR_PKG_DIR/_mlir_libs/cmake/mlir" \
-              "$MLIR_PKG_DIR/cmake/mlir" \
-              "$MLIR_PKG_DIR/share/cmake/mlir"; do
-              if [ -f "$cand/MLIRConfig.cmake" ]; then
-                export MLIR_DIR="$cand"
-                break
-              fi
-            done
-            if [ -z "''${MLIR_DIR:-}" ]; then
-              echo "Could not locate MLIRConfig.cmake under $MLIR_PKG_DIR" >&2
-              find "$MLIR_PKG_DIR" -name 'MLIRConfig.cmake' >&2 || true
-              exit 1
-            fi
-            echo "Using MLIR_DIR=$MLIR_DIR"
-
-            # Skip herbie_mlir/rival's FetchContent + cargo build by
-            # pointing at the prebuilt static library + header from the
-            # rival-ffi derivation.
-            cmakeFlagsArray+=(
-              "-DRIVAL_PREBUILT_LIB=${rival-ffi}/lib/librival3_ffi.a"
-              "-DRIVAL_PREBUILT_INCLUDE=${rival-ffi}/include"
-            )
-
-            # The mlir-wheel doesn't ship llvm-lit; point CMake at the
-            # nixpkgs lit binary so add_lit_testsuite is satisfied.
-            cmakeFlagsArray+=( "-DLLVM_EXTERNAL_LIT=${pkgs.lit}/bin/lit" )
-          '';
-
-          # MLIR_DIR is read from the environment by CMake's find_package.
-          # Add other static flags here:
-          # cmakeFlags = [ "-DTAMAGOYAKI_USE_FOO=ON" ];
-
-          # The project's CMakeLists.txt has no install() rules for the
-          # *-opt executables, so `cmake --install` only picks up libraries.
-          # Manually copy the binaries we care about out of the build tree.
-          installPhase = ''
-            runHook preInstall
-            mkdir -p $out/bin
-            for exe in tamagoyaki-opt herbie-mlir-opt cranelift-mlir-opt rover-mlir-opt; do
-              if [ -x "bin/$exe" ]; then
-                cp "bin/$exe" "$out/bin/$exe"
-              else
-                echo "warning: expected executable bin/$exe not found in build tree" >&2
-              fi
-            done
-            runHook postInstall
-          '';
 
           meta = with lib; {
             description = "Tamagoyaki MLIR equality saturation tool";
@@ -302,70 +222,204 @@
           };
         };
 
+        # ---------- Shared bits for the configure wrapper ----------
+        sharedLibExt = pkgs.stdenv.hostPlatform.extensions.sharedLibrary;
+
+        cmakePrefixPath = lib.concatStringsSep ";" [
+          "${mlir.dev}"
+          "${libllvm.dev}"
+          "${circt.dev}"
+          "${pkgs.gmp.dev}"
+          "${pkgs.mpfr.dev}"
+        ];
+
+        # circt-nix's prebuilt LLVM was compiled with macOS deployment
+        # target 14.0. Linking it with the nixpkgs default (11.3 on
+        # 25.05) produces a flood of "object file ... was built for
+        # newer macOS version (14.0) than being linked (11.3)" warnings,
+        # so we pin our own target to match.
+        darwinDeploymentTarget = "14.0";
+
+        deploymentTargetFlag =
+          lib.optionalString pkgs.stdenv.isDarwin
+            "-DCMAKE_OSX_DEPLOYMENT_TARGET=${darwinDeploymentTarget}";
+
+        # ---------- Shell-agnostic configure wrapper ----------
+        # A real script on PATH (works from bash / zsh / fish / nushell
+        # / etc.). All nix store paths are baked in at build time, so
+        # the script does not depend on env vars set by shellHook.
+        tamagoyaki-configure = pkgs.writeShellApplication {
+          name = "tamagoyaki-configure";
+          runtimeInputs = with pkgs; [
+            cmake
+            ninja
+            lit
+            coreutils
+          ];
+          # shellcheck flags off our intentional quoted-but-empty
+          # deploymentTargetFlag on linux; suppress that lint.
+          checkPhase = "";
+          text = ''
+            set -euo pipefail
+
+            builddir="''${1:-build}"
+            if [ $# -gt 0 ]; then shift; fi
+
+            if [ ! -f CMakeLists.txt ]; then
+              echo "tamagoyaki-configure: must be run from the project root" >&2
+              echo "  (no CMakeLists.txt in $(pwd))" >&2
+              exit 1
+            fi
+
+            echo "==> Wiping $builddir/ to discard any stale CMake cache"
+            rm -rf "$builddir"
+
+            echo "==> Configuring $builddir/"
+            cmake -G Ninja \
+              -B "$builddir" -S . \
+              -DCMAKE_BUILD_TYPE=Release \
+              ${deploymentTargetFlag} \
+              -DCMAKE_PREFIX_PATH="${cmakePrefixPath}" \
+              -DMLIR_DIR="${mlir.dev}/lib/cmake/mlir" \
+              -DLLVM_DIR="${libllvm.dev}/lib/cmake/llvm" \
+              -DCIRCT_DIR="${circt.dev}/lib/cmake/circt" \
+              -DLLVM_EXTERNAL_LIT="${pkgs.lit}/bin/lit" \
+              -DGMP_LIBRARY="${pkgs.gmp}/lib/libgmp${sharedLibExt}" \
+              -DGMP_INCLUDE_DIR="${pkgs.gmp.dev}/include" \
+              -DMPFR_LIBRARY="${pkgs.mpfr}/lib/libmpfr${sharedLibExt}" \
+              -DMPFR_INCLUDE_DIR="${pkgs.mpfr.dev}/include" \
+              -DRIVAL_PREBUILT_LIB="${rival-ffi}/lib/librival3_ffi.a" \
+              -DRIVAL_PREBUILT_INCLUDE="${rival-ffi}/include" \
+              "$@"
+
+            echo ""
+            echo "Configured. Build with:"
+            echo "  ninja -C $builddir check-all"
+          '';
+        };
+
       in
       {
         packages = {
           default = tamagoyaki;
-          tamagoyaki = tamagoyaki;
-          rival-ffi = rival-ffi;
-          pythonEnv = pythonBuildEnv;
+          inherit tamagoyaki rival-ffi mlir circt tamagoyaki-configure;
         };
 
-        devShells.default = pkgs.mkShell {
-          name = "tamagoyaki-eval";
-          inputsFrom = [ tamagoyaki ];
+        devShells = {
+          # ---------- CI shell ----------
+          # The minimum needed to configure and run `ninja check-all`
+          # against the prebuilt LLVM/MLIR/CIRCT/rival-ffi from the
+          # binary cache. No Rust toolchain, no Racket, no Herbie
+          # graphics deps — those are only needed for development, not
+          # for running the test suite. This is what
+          # `.github/workflows/test.yml` uses.
+          #
+          # cmake/ninja/lit/pkg-config and the LLVM/MLIR/CIRCT/gmp/mpfr
+          # closure all come in via `inputsFrom = [ tamagoyaki ]` and
+          # so don't need to be listed explicitly.
+          ci = pkgs.mkShell {
+            name = "tamagoyaki-ci";
+            inputsFrom = [ tamagoyaki ];
+            packages = [ tamagoyaki-configure ];
 
-          packages = with pkgs; [
-            rustToolchain
-            racket-minimal
-            flex
-            bison
-            gmp
-            mpfr
-            fontconfig
-            cairo
-            pango
-            libjpeg
-            libpng
-            zlib
-            uv
-          ];
+            shellHook = ''
+              # Lit is python; don't let the system PYTHONPATH leak in.
+              unset PYTHONPATH
+            '' + lib.optionalString pkgs.stdenv.isDarwin ''
+              export MACOSX_DEPLOYMENT_TARGET="${darwinDeploymentTarget}"
+            '';
+          };
 
-          RACKET_FFI_LIB_PATH = lib.makeLibraryPath (
-            with pkgs;
-            [
-              stdenv.cc.cc.lib
-              gmp
-              mpfr
+          # ---------- Full developer shell ----------
+          # Everything in `ci` plus: Rust toolchain (for iterating on
+          # rival-ffi), Racket + graphics libs (for Herbie), uv (for
+          # Python eval scripts), and ad-hoc env vars convenient for
+          # poking at the build from inside the shell.
+          default = pkgs.mkShell {
+            name = "tamagoyaki-dev";
+            inputsFrom = [ tamagoyaki ];
+
+            # Expose the prebuilt CIRCT/MLIR/LLVM packages so they're
+            # readily available for ad-hoc commands inside the shell.
+            inherit circt mlir;
+
+            packages = (with pkgs; [
+              rustToolchain
+              racket-minimal
+              flex
+              bison
               fontconfig
               cairo
               pango
-              glib
-              freetype
-              fribidi
-              pixman
-              expat
               libjpeg
               libpng
               zlib
-            ]
-          );
+              uv
+            ]) ++ [
+              tamagoyaki-configure
+            ];
 
-          shellHook = ''
-            if [[ "$(uname)" == "Darwin" ]]; then
-              export DYLD_FALLBACK_LIBRARY_PATH="$RACKET_FFI_LIB_PATH''${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
-            else
-              export LD_LIBRARY_PATH="$RACKET_FFI_LIB_PATH''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-            fi
+            # Exposed for ad-hoc use; the configure wrapper is the
+            # supported entry point because CMake does not honour most
+            # of these as environment variables (only CMAKE_PREFIX_PATH).
+            MLIR_DIR  = "${mlir.dev}/lib/cmake/mlir";
+            LLVM_DIR  = "${libllvm.dev}/lib/cmake/llvm";
+            CIRCT_DIR = "${circt.dev}/lib/cmake/circt";
+            GMP_PREFIX  = "${pkgs.gmp}";
+            GMP_DEV     = "${pkgs.gmp.dev}";
+            MPFR_PREFIX = "${pkgs.mpfr}";
+            MPFR_DEV    = "${pkgs.mpfr.dev}";
+            RIVAL_PREBUILT_LIB     = "${rival-ffi}/lib/librival3_ffi.a";
+            RIVAL_PREBUILT_INCLUDE = "${rival-ffi}/include";
 
-            # Don't let the system Python interfere with uv-managed envs.
-            unset PYTHONPATH
+            RACKET_FFI_LIB_PATH = lib.makeLibraryPath (
+              with pkgs;
+              [
+                stdenv.cc.cc.lib
+                gmp
+                mpfr
+                fontconfig
+                cairo
+                pango
+                glib
+                freetype
+                fribidi
+                pixman
+                expat
+                libjpeg
+                libpng
+                zlib
+              ]
+            );
 
-            echo "tamagoyaki eval shell ready"
-            echo "  uv     : $(uv --version)"
-            echo "  cargo  : $(cargo --version)"
-            echo "  cmake  : $(cmake --version | head -1)"
-          '';
+            shellHook = ''
+              case "$(uname)" in
+                Darwin)
+                  export DYLD_FALLBACK_LIBRARY_PATH="$RACKET_FFI_LIB_PATH''${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
+                  export MACOSX_DEPLOYMENT_TARGET="${darwinDeploymentTarget}"
+                  ;;
+                *)
+                  export LD_LIBRARY_PATH="$RACKET_FFI_LIB_PATH''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+                  ;;
+              esac
+
+              # Don't let the system Python interfere with uv-managed envs.
+              unset PYTHONPATH
+
+              echo "tamagoyaki dev shell ready"
+              echo "  uv     : $(uv --version)"
+              echo "  cargo  : $(cargo --version)"
+              echo "  cmake  : $(cmake --version | head -1)"
+              echo "  lit    : $(command -v lit)"
+              echo "  MLIR   : $MLIR_DIR"
+              echo "  LLVM   : $LLVM_DIR"
+              echo "  CIRCT  : $CIRCT_DIR  (required by rover-mlir)"
+              echo ""
+              echo "Configure & build with:"
+              echo "  tamagoyaki-configure"
+              echo "  ninja -C build check-all      # build & run all test suites"
+            '';
+          };
         };
       }
     );
