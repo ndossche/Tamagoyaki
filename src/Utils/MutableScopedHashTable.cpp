@@ -9,14 +9,18 @@
 namespace mlir::ematch {
 
 // Explicit instantiations
+// \cond
 using AllocatorTy = llvm::RecyclingAllocator<
     llvm::BumpPtrAllocator,
-    MutableScopedHashTableVal<Operation *, Operation *>>;
+    MutableScopedHashTableVal<mlir::Operation *, mlir::Operation *>>;
+// \endcond
 
-template class MutableScopedHashTableVal<Operation *, Operation *>;
-template class MutableScopedHashTableScope<Operation *, Operation *,
+template class MutableScopedHashTableVal<::mlir::Operation *,
+                                          ::mlir::Operation *>;
+template class MutableScopedHashTableScope<::mlir::Operation *,
+                                           ::mlir::Operation *,
                                            SimpleOperationInfo, AllocatorTy>;
-template class MutableScopedHashTable<Operation *, Operation *,
+template class MutableScopedHashTable<::mlir::Operation *, ::mlir::Operation *,
                                       SimpleOperationInfo, AllocatorTy>;
 
 } // namespace mlir::ematch
