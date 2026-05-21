@@ -206,6 +206,19 @@ pdl.pattern @SelAddLeft : benefit(1) {
   }
 }
 
+pdl.pattern @SelSame : benefit(1) {
+  %s = pdl.operand
+  %a = pdl.operand
+  %resultType = pdl.type
+
+  %mux = pdl.operation "comb.mux"(%s, %a, %a : !pdl.value, !pdl.value, !pdl.value)
+               -> (%resultType : !pdl.type)
+
+  pdl.rewrite %mux {
+    pdl.replace %mux with (%a : !pdl.value)
+  }
+}
+
 pdl.pattern @AddRightShift : benefit(1) {
   %type = pdl.type
 
