@@ -107,6 +107,21 @@
             '';
           };
 
+          # Python interpreter with the Sphinx toolchain the docs build needs.
+          # Mirrors docs/requirements.txt so CI builds docs entirely from Nix.
+          docsPython = pkgs.python3.withPackages (
+            ps: with ps; [
+              sphinx
+              furo
+              myst-parser
+              breathe
+              sphinx-copybutton
+              sphinx-design
+              sphinxcontrib-mermaid
+              linkify-it-py
+            ]
+          );
+
           mkVariant =
             { variant }:
             let
@@ -277,15 +292,24 @@
               # C/C++ deps. The dev shell (ci = false) adds Rust (rival's
               # FetchContent fallback), full racket (Herbie via raco), uv, and
               # debuggers; the CI shell is the minimum to run `check-all`.
+              # `docs = true` adds Doxygen + the Sphinx toolchain so the docs
+              # build (tablegen -> doxygen -> breathe -> sphinx) runs from Nix.
               mkTamaShell =
-                { ci }:
+                {
+                  ci,
+                  docs ? false,
+                }:
                 (pkgs.mkShell.override { inherit stdenv; }) {
-                  name = "tamagoyaki${suffix}${lib.optionalString ci "-ci"}";
+                  name = "tamagoyaki${suffix}${lib.optionalString ci "-ci"}${lib.optionalString docs "-docs"}";
 
                   inputsFrom = [ tamagoyaki ];
 
                   packages = [
                     tamagoyaki-configure
+                  ]
+                  ++ lib.optionals docs [
+                    pkgs.doxygen
+                    docsPython
                   ]
                   ++ lib.optionals (!ci) (
                     [ rustToolchain ]
@@ -344,6 +368,10 @@
 
               shell = mkTamaShell { ci = false; };
               ciShell = mkTamaShell { ci = true; };
+              docsShell = mkTamaShell {
+                ci = true;
+                docs = true;
+              };
             in
             {
               inherit
@@ -353,6 +381,7 @@
                 tamagoyaki-configure
                 shell
                 ciShell
+                docsShell
                 ;
             };
 
@@ -374,6 +403,7 @@
             default = release.shell;
             debug = debug.shell;
             ci = release.ciShell;
+            docs = release.docsShell;
           };
         };
 
