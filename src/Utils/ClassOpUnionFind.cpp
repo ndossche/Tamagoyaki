@@ -408,13 +408,19 @@ void ClassOpUnionFind::mergeResults(HashConsPatternRewriter &rewriter,
           otherInputs.assign(filtered);
         classUnion(rewriter, classKeep.getResult(), classOther.getResult());
       } else {
-        SmallPtrSet<Value, 8> seen;
-        SmallVector<Value> uniqueOperands;
-        for (Value operand : classKeep.getInputs()) {
-          if (seen.insert(operand).second)
-            uniqueOperands.push_back(operand);
+        // resOther and resKeep were both inputs of the same class, and resOther was replaced by resKeep.
+        // Therefore, there is only one duplicate of resKeep.
+        SmallVector<Value> deduped;
+        deduped.reserve(classKeep.getInputs().size() - 1);
+        bool droppedDuplicate = false;
+        for (Value v : classKeep.getInputs()) {
+          if (!droppedDuplicate && v == resKeep) {
+            droppedDuplicate = true;
+            continue;
+          }
+          deduped.push_back(v);
         }
-        classKeep.getInputsMutable().assign(uniqueOperands);
+        classKeep.getInputsMutable().assign(deduped);
       }
     } else if (classKeep) {
       // Case 2: only keep has a class — redirect other's results to the
