@@ -8,6 +8,7 @@
 
 #include "Utils/HashConsPatternRewriter.h"
 #include "EquivalenceDialect.h"
+#include "Utils/ClassOpUnionFind.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
@@ -50,7 +51,9 @@ void HashConsPatternRewriter::finalizeOpModification(Operation *op) {
                           << "\n");
   if (dyn_cast<equivalence::ClassOp>(*op))
     return;
-  (void)insert(op);
+  if (failed(insert(op)) && unionFind) {
+    unionFind->repairDuplicate(op);
+  }
   PatternRewriter::finalizeOpModification(op);
 }
 
