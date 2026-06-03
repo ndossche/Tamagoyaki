@@ -34,13 +34,10 @@ public:
   MutableScopedHashTableVal *getNextInScope() { return NextInScope; }
 
   template <typename AllocatorTy>
-  static MutableScopedHashTableVal *Create(MutableScopedHashTableVal *&headPtr,
-                                           const K &key, const V &val,
+  static MutableScopedHashTableVal *Create(const K &key, const V &val,
                                            AllocatorTy &Allocator) {
     auto *New = Allocator.template Allocate<MutableScopedHashTableVal>();
     new (New) MutableScopedHashTableVal(key, val);
-    New->NextInScope = headPtr;
-    headPtr = New;
     return New;
   }
 
@@ -60,7 +57,6 @@ public:
 private:
   TableTy &HT;
   MutableScopedHashTableScope *ParentScope;
-  ValTy *LastValInScope = nullptr;
 
   // Local map for THIS scope's bindings only
   llvm::DenseMap<K, ValTy *, KInfo> LocalMap;
@@ -80,9 +76,8 @@ public:
 
   ~MutableScopedHashTableScope() {
     // Clean up all values in this scope
-    while (ValTy *Entry = LastValInScope) {
-      LastValInScope = Entry->getNextInScope();
-      Entry->Destroy(HT.getAllocator());
+    for (auto &[_k, v] : LocalMap) {
+      v->Destroy(HT.getAllocator());
     }
   }
 
@@ -93,7 +88,7 @@ public:
 
   /// Insert a key-value pair into THIS scope
   void insert(const K &Key, const V &Val) {
-    ValTy *NewVal = ValTy::Create(LastValInScope, Key, Val, HT.getAllocator());
+    ValTy *NewVal = ValTy::Create(Key, Val, HT.getAllocator());
     LocalMap[Key] = NewVal;
   }
 
@@ -131,15 +126,6 @@ public:
 
     ValTy *Entry = it->second;
     LocalMap.erase(it);
-
-    // Remove from scope's linked list (O(n) but maintains cleanup order)
-    ValTy **Ptr = &LastValInScope;
-    while (*Ptr && *Ptr != Entry)
-      Ptr = &((*Ptr)->NextInScope); // Need to expose this or add friend
-
-    if (*Ptr) {
-      *Ptr = Entry->getNextInScope();
-    }
 
     Entry->Destroy(HT.getAllocator());
     return true;
