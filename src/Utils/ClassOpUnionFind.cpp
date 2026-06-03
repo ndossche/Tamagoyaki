@@ -231,6 +231,10 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
 
   while (!worklist.empty()) {
     llvm::SetVector<Operation *> todo;
+    // Deduplicate sets for operand merging keyed by leader op.
+    // Shared across all ClassOps merging into the same leader.
+    llvm::DenseMap<Operation *, llvm::SmallPtrSet<Value, 16>> leaderExisting;
+
     for (Operation *op : worklist) {
       if (!op || erasedOps.contains(op) || !op->getBlock()) {
         continue; // op has already been removed/erased
@@ -246,9 +250,13 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
 
       auto leader = getCanonicalLeader(c);
       if (c != leader) { // c needs to be canonicalized
-        // add operands to leader (deduplicated)
-        SmallPtrSet<Value, 8> existing(leader.getInputs().begin(),
-                                       leader.getInputs().end());
+        // Add operands to leader (deduplicated).
+        // leaderExisting is shared across all ClassOps merging into the same leader.
+        auto [it, inserted] = leaderExisting.try_emplace(leader.getOperation());
+        if (inserted)
+          it->second.insert(leader.getInputs().begin(), leader.getInputs().end());
+        auto &existing = it->second;
+
         SmallVector<Value, 8> newOperands;
         for (Value operand : c.getInputs()) {
           assert(
