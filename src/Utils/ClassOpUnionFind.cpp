@@ -24,6 +24,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <cstddef>
 #include <utility>
@@ -197,6 +198,23 @@ void ClassOpUnionFind::processPendingClassUnions(PatternRewriter &rewriter) {
   pendingClassUnions.clear();
 }
 
+void ClassOpUnionFind::repairDuplicate(Operation *dup) {
+  // `dup` was found congruent to an existing e-node while being re-keyed after
+  // an operand change. Both share operands, so scheduling repair of an
+  // operand-defining op lets repair()'s normal duplicate-merging path collapse
+  // them.
+  for (Value operand : dup->getOperands())
+    if (Operation *def = operand.getDefiningOp()) {
+      worklist.push_back(def);
+      return;
+    }
+
+  // The congruence is detected while re-keying `dup` after one of its operands
+  // was rewritten to a ClassOp result, so at least one operand must have a
+  // defining op. If none does, the duplicate would silently leak.
+  llvm_unreachable("repairDuplicate: congruent op has no defining-op operand");
+}
+
 bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
   TAMAGOYAKI_SCOPED_TIMER("rebuild");
   LLVM_DEBUG({
@@ -231,7 +249,9 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
 
   while (!worklist.empty()) {
     llvm::SetVector<Operation *> todo;
-    for (Operation *op : worklist) {
+    SmallVector<Operation *> current;
+    std::swap(current, worklist);
+    for (Operation *op : current) {
       if (!op || erasedOps.contains(op) || !op->getBlock()) {
         continue; // op has already been removed/erased
       }
@@ -271,7 +291,6 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
       }
       todo.insert(leader.getOperation());
     }
-    worklist.clear();
 
     for (Operation *op : todo) {
       if (!op || erasedOps.contains(op) || !op->getBlock())
