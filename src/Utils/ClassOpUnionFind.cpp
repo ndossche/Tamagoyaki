@@ -249,6 +249,9 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
 
   while (!worklist.empty()) {
     llvm::SetVector<Operation *> todo;
+    // Deduplicate sets for operand merging keyed by leader op.
+    // Shared across all ClassOps merging into the same leader.
+    llvm::DenseMap<Operation *, llvm::SmallPtrSet<Value, 16>> leaderExisting;
     SmallVector<Operation *> current;
     std::swap(current, worklist);
     for (Operation *op : current) {
@@ -266,9 +269,13 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
 
       auto leader = getCanonicalLeader(c);
       if (c != leader) { // c needs to be canonicalized
-        // add operands to leader (deduplicated)
-        SmallPtrSet<Value, 8> existing(leader.getInputs().begin(),
-                                       leader.getInputs().end());
+        // Add operands to leader (deduplicated).
+        // leaderExisting is shared across all ClassOps merging into the same leader.
+        auto [it, inserted] = leaderExisting.try_emplace(leader.getOperation());
+        if (inserted)
+          it->second.insert(leader.getInputs().begin(), leader.getInputs().end());
+        auto &existing = it->second;
+
         SmallVector<Value, 8> newOperands;
         for (Value operand : c.getInputs()) {
           assert(
@@ -427,13 +434,19 @@ void ClassOpUnionFind::mergeResults(HashConsPatternRewriter &rewriter,
           otherInputs.assign(filtered);
         classUnion(rewriter, classKeep.getResult(), classOther.getResult());
       } else {
-        SmallPtrSet<Value, 8> seen;
-        SmallVector<Value> uniqueOperands;
-        for (Value operand : classKeep.getInputs()) {
-          if (seen.insert(operand).second)
-            uniqueOperands.push_back(operand);
+        // resOther and resKeep were both inputs of the same class, and resOther was replaced by resKeep.
+        // Therefore, there is only one duplicate of resKeep.
+        SmallVector<Value> deduped;
+        deduped.reserve(classKeep.getInputs().size() - 1);
+        bool droppedDuplicate = false;
+        for (Value v : classKeep.getInputs()) {
+          if (!droppedDuplicate && v == resKeep) {
+            droppedDuplicate = true;
+            continue;
+          }
+          deduped.push_back(v);
         }
-        classKeep.getInputsMutable().assign(uniqueOperands);
+        classKeep.getInputsMutable().assign(deduped);
       }
     } else if (classKeep) {
       // Case 2: only keep has a class — redirect other's results to the
