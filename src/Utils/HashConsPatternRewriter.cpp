@@ -87,14 +87,13 @@ LogicalResult HashConsPatternRewriter::insert(Operation *op) {
   assert(scope && "insert: no scope registered for region");
 
   // Check if an equivalent operation already exists in the scope
-  if (auto existing = scope->lookup(op); existing.has_value()) {
+  if (!scope->insert(op, op)) {
     LLVM_DEBUG(llvm::dbgs()
-               << "insert: equivalent operation already exists: " << *existing
+               << "insert: equivalent operation already exists"
                << ", skipping insert of: " << *op << "\n");
     return failure();
   }
 
-  scope->insert(op, op);
   nodeCount++;
   LLVM_DEBUG(llvm::dbgs() << "inserted operation into hash-cons scope: " << *op
                           << "\n");

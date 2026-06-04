@@ -83,10 +83,15 @@ public:
     return ParentScope;
   }
 
-  /// Insert a key-value pair into THIS scope
-  void insert(const K &Key, const V &Val) {
-    ValTy *NewVal = ValTy::Create(Key, Val, HT.getAllocator());
-    LocalMap[Key] = NewVal;
+  /// Insert a key-value pair into THIS scope.
+  /// Returns true when Key was inserted.
+  /// Return false when Key was already present.
+  bool insert(const K &Key, const V &Val) {
+    auto [it, inserted] = LocalMap.try_emplace(Key, nullptr);
+    if (inserted) {
+      it->second = ValTy::Create(Key, Val, HT.getAllocator());
+    }
+    return inserted;
   }
 
   /// Lookup a key, searching this scope and all ancestors
