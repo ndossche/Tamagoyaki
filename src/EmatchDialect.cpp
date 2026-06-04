@@ -60,16 +60,16 @@ void mlir::ematch::EmatchDialect::initialize() {
       >();
 }
 
-mlir::Type mlir::ematch::EmatchDialect::parseType(
-    mlir::DialectAsmParser &parser) const {
+mlir::Type
+mlir::ematch::EmatchDialect::parseType(mlir::DialectAsmParser &parser) const {
   StringRef typeName;
   if (parser.parseKeyword(&typeName))
     return Type();
   return {};
 }
 
-void mlir::ematch::EmatchDialect::printType(
-    mlir::Type type, mlir::DialectAsmPrinter &os) const {
+void mlir::ematch::EmatchDialect::printType(mlir::Type type,
+                                            mlir::DialectAsmPrinter &os) const {
   os << "unknown";
 }
 
@@ -145,6 +145,7 @@ bool runSaturation(MLIRContext *ctx, PDLPatternModule pdlPattern,
 
   ClassOpUnionFind uf{};
   HashConsPatternRewriter hashconsRewriter(ctx);
+  hashconsRewriter.setUnionFind(&uf);
   if (listener)
     hashconsRewriter.setListener(listener);
 

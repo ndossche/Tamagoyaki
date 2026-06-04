@@ -88,6 +88,12 @@ public:
   /// identical can be collapsed.
   void repair(HashConsPatternRewriter &rewriter, mlir::Operation *op);
 
+  /// `dup` was found congruent to an existing e-node while being re-keyed
+  /// after an operand change. Schedule `repair` (via the worklist) so the
+  /// duplicate is collapsed through the same path as any other duplicate
+  /// parent. Safe to call mid-`rebuild`.
+  void repairDuplicate(mlir::Operation *dup);
+
   /// Merge the results of two duplicate parent operations
   /// (`other` -> `keep`), reconciling their owning ClassOps if any.
   /// Used by `repair` when collapsing duplicate users of a ClassOp.
