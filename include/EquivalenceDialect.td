@@ -152,12 +152,20 @@ def Equivalence_ClassOp : Equivalence_Op<"class", [
     }];
 
     let hasFolder = 1;
-    
-    // Verify the following:
+
+    // Establishes the class normal form: merges a nested class operand into
+    // this class, and redirects any *other* op that still refers to an operand
+    // directly so that it refers to the class result instead.
+    let hasCanonicalizeMethod = 1;
+
+    // Verify:
     // 1. At least one operand.
-    // 2. Operands cannot be result of other ClassOp.
-    // 3. Operands must be used only by this ClassOp.
-    let hasVerifier = 1; 
+    // 2. If present, the leader is the result of a ClassOp.
+    // The normal-form properties (a class result is never an operand of another
+    // class; operands are used only by the class; operands are unique) are
+    // established by the `equivalence-restore-invariants` pass, not enforced
+    // here.
+    let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -228,6 +236,21 @@ def EquivalenceSelectConstants: Pass<"equivalence-select-constants", "::mlir::Mo
     classes that contain an operand produced by a constant operation, selects
     that operand. Classes that already carry a `min_cost_index`, or that contain
     no constant operand, are left untouched.
+  }];
+  let dependentDialects = ["::mlir::equivalence::EquivalenceDialect"];
+}
+
+def EquivalenceRestoreInvariants: Pass<"equivalence-restore-invariants", "::mlir::ModuleOp"> {
+  let summary = "Restores the equivalence-class normal form to a fixpoint.";
+  let description = [{
+    Applies the `equivalence.class` folder and canonicalizer until no further
+    rewrites apply, re-establishing the class normal form:
+
+      * a class result is never used as an operand of another class
+        (nested classes are merged), and
+      * a class's operands are used only by that class
+        (external uses are rerouted through the class result).
+      * class operands are deduplicated
   }];
   let dependentDialects = ["::mlir::equivalence::EquivalenceDialect"];
 }
