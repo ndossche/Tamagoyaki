@@ -299,7 +299,19 @@
                   ci,
                   docs ? false,
                 }:
-                (pkgs.mkShell.override { inherit stdenv; }) {
+                let
+                  # gmp/mpfr/libmpc are dlopen'd at runtime (Racket/Herbie and
+                  # rival), so they must be on the loader path. Set this as a
+                  # declarative env var rather than in shellHook: `nix develop`
+                  # runs shellHook, but direnv's `use flake` does not, so a
+                  # shellHook export is invisible under direnv.
+                  loaderPath = lib.makeLibraryPath [
+                    pkgs.gmp
+                    pkgs.mpfr
+                    pkgs.libmpc
+                  ];
+                in
+                (pkgs.mkShell.override { inherit stdenv; }) ({
                   name = "tamagoyaki${suffix}${lib.optionalString ci "-ci"}${lib.optionalString docs "-docs"}";
 
                   inputsFrom = [ tamagoyaki ];
@@ -348,32 +360,17 @@
                     # Keep the host PYTHONPATH out of lit's python.
                     unset PYTHONPATH
 
-                    # gmp/mpfr/libmpc are dlopen'd at runtime, so they need to
-                    # be on the loader path, not just discoverable at link time.
-                    ${
-                      if isDarwin then
-                        ''export DYLD_LIBRARY_PATH="${
-                          lib.makeLibraryPath [
-                            pkgs.gmp
-                            pkgs.mpfr
-                            pkgs.libmpc
-                          ]
-                        }''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"''
-                      else
-                        ''export LD_LIBRARY_PATH="${
-                          lib.makeLibraryPath [
-                            pkgs.gmp
-                            pkgs.mpfr
-                            pkgs.libmpc
-                          ]
-                        }''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"''
-                    }
-
                     echo "tamagoyaki ${variant}${lib.optionalString ci " (ci)"} shell ready"
                     echo "  configure: tamagoyaki-configure build"
                     echo "  build:     ninja -C build check-all"
                   '';
-                };
+                }
+                // (
+                  if isDarwin then
+                    { DYLD_LIBRARY_PATH = loaderPath; }
+                  else
+                    { LD_LIBRARY_PATH = loaderPath; }
+                ));
 
               shell = mkTamaShell { ci = false; };
               ciShell = mkTamaShell { ci = true; };
