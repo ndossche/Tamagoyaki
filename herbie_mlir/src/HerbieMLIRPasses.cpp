@@ -147,8 +147,8 @@ struct ValueColumns {
 /// Recursively print a Value as a flat expression string, resolving ClassOps
 /// by picking the greedy-selected operand — unless `patch` is non-null and
 /// points at that ClassOp, in which case the patch operand is used instead.
-static std::string valueToExpr(Value val, PatchDesc *patch,
-                               DenseSet<Value> &onStack) {
+[[maybe_unused]] static std::string valueToExpr(Value val, PatchDesc *patch,
+                                                DenseSet<Value> &onStack) {
   Operation *defOp = val.getDefiningOp();
   if (!defOp) {
     auto blockArg = cast<BlockArgument>(val);

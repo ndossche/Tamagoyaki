@@ -102,7 +102,8 @@ mlir::ematch::getClassResults(mlir::PatternRewriter &rewriter,
 }
 
 // Erase the first occurrence of target from classOp input list.
-// Instead of using erase directly, it first swaps with the last element to make erase O(1).
+// Instead of using erase directly, it first swaps with the last element to make
+// erase O(1).
 static void swappedErase(equivalence::ClassOp classOp, Value target) {
   auto inputs = classOp.getInputs();
   unsigned last = inputs.size() - 1; // inclusive
@@ -285,10 +286,12 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
       auto leader = getCanonicalLeader(c);
       if (c != leader) { // c needs to be canonicalized
         // Add operands to leader (deduplicated).
-        // leaderExisting is shared across all ClassOps merging into the same leader.
+        // leaderExisting is shared across all ClassOps merging into the same
+        // leader.
         auto [it, inserted] = leaderExisting.try_emplace(leader.getOperation());
         if (inserted)
-          it->second.insert(leader.getInputs().begin(), leader.getInputs().end());
+          it->second.insert(leader.getInputs().begin(),
+                            leader.getInputs().end());
         auto &existing = it->second;
 
         SmallVector<Value, 8> newOperands;
@@ -362,9 +365,9 @@ void ClassOpUnionFind::hashconsGraph(HashConsPatternRewriter &rewriter,
   }
 
   for (auto [other, keep] : toMerge) {
-    bool erased = rewriter.erase(keep).succeeded();
+    [[maybe_unused]] bool erased = rewriter.erase(keep).succeeded();
     assert(erased);
-    bool inserted = rewriter.insert(keep).succeeded();
+    [[maybe_unused]] bool inserted = rewriter.insert(keep).succeeded();
     assert(inserted);
 
     mergeResults(rewriter, other, keep);
@@ -408,9 +411,9 @@ void ClassOpUnionFind::repair(HashConsPatternRewriter &rewriter,
     if (keep == other)
       continue;
 
-    bool erased = rewriter.erase(keep).succeeded();
+    [[maybe_unused]] bool erased = rewriter.erase(keep).succeeded();
     assert(erased);
-    bool inserted = rewriter.insert(keep).succeeded();
+    [[maybe_unused]] bool inserted = rewriter.insert(keep).succeeded();
     assert(inserted);
 
     mergeResults(rewriter, other, keep);
@@ -442,8 +445,9 @@ void ClassOpUnionFind::mergeResults(HashConsPatternRewriter &rewriter,
         swappedErase(classOther, resKeep);
         classUnion(rewriter, classKeep.getResult(), classOther.getResult());
       } else {
-        // resOther and resKeep were both inputs of the same class, and resOther was replaced by resKeep.
-        // Therefore, there is only one duplicate of resKeep.
+        // resOther and resKeep were both inputs of the same class, and resOther
+        // was replaced by resKeep. Therefore, there is only one duplicate of
+        // resKeep.
         swappedErase(classKeep, resKeep);
       }
     } else if (classKeep) {

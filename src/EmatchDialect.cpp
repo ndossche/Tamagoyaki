@@ -14,7 +14,6 @@
 #include "EquivalenceUtils.h"
 #include "Utils/ClassOpUnionFind.h"
 #include "Utils/HashConsPatternRewriter.h"
-#include "Utils/MutableScopedHashTable.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -34,15 +33,16 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "vendor/mlir/Bytecode.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <chrono>
+#include <cstdint>
+#include <llvm/ADT/STLExtras.h>
 #include <string>
 #include <utility>
 
@@ -415,8 +415,7 @@ struct LowerIsArgPattern : public OpRewritePattern<IsArgOp> {
 /// `patterns`.
 struct ReplaceRecordMatchPattern
     : public OpRewritePattern<pdl_interp::RecordMatchOp> {
-  ReplaceRecordMatchPattern(MLIRContext *context,
-                            llvm::StringSet<> &patterns)
+  ReplaceRecordMatchPattern(MLIRContext *context, llvm::StringSet<> &patterns)
       : OpRewritePattern<pdl_interp::RecordMatchOp>(context),
         patterns(patterns) {}
 
@@ -447,8 +446,7 @@ struct ReplaceRecordMatchPattern
 /// Lower every `ematch.is_arg` in the module to a `pdl_interp.apply_constraint`
 /// invoking a constraint named "is_arg_<index>". The set of indices that appear
 /// is collected so the pass can register one constraint per index.
-static void lowerIsArgOps(ModuleOp module,
-                          llvm::DenseSet<uint32_t> &indices) {
+static void lowerIsArgOps(ModuleOp module, llvm::DenseSet<uint32_t> &indices) {
   TAMAGOYAKI_SCOPED_TIMER("lowerIsArgOps");
   RewritePatternSet patterns(module.getContext());
   patterns.add<LowerIsArgPattern>(module.getContext(), indices);
@@ -555,15 +553,17 @@ struct EmatchSaturateBenchmarkPass
                     maxIters, 0);
 
       auto endTime = std::chrono::high_resolution_clock::now();
-      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-          endTime - startTime);
+      [[maybe_unused]] auto duration =
+          std::chrono::duration_cast<std::chrono::microseconds>(endTime -
+                                                                startTime);
       LLVM_DEBUG(llvm::dbgs() << "Run " << (run + 1) << " took "
                               << duration.count() << " µs\n");
     }
 
     auto totalEndTime = std::chrono::high_resolution_clock::now();
-    auto totalDuration = std::chrono::duration_cast<std::chrono::microseconds>(
-        totalEndTime - totalStartTime);
+    [[maybe_unused]] auto totalDuration =
+        std::chrono::duration_cast<std::chrono::microseconds>(totalEndTime -
+                                                              totalStartTime);
     LLVM_DEBUG(llvm::dbgs()
                << "EmatchSaturateBenchmarkPass total: " << totalDuration.count()
                << " µs for " << numRuns << " runs\n");
@@ -692,8 +692,9 @@ struct EquivalenceGraphContainsPass
     for (uint32_t index : argIndices) {
       std::string name = ("is_arg_" + Twine(index)).str();
       pdlPattern.registerConstraintFunction(
-          name, [index](PatternRewriter &rw, PDLResultList &,
-                        ArrayRef<PDLValue> args) -> LogicalResult {
+          name,
+          [index](PatternRewriter &rw, PDLResultList &,
+                  ArrayRef<PDLValue> args) -> LogicalResult {
             if (args.empty() || !args[0].isa<Value>())
               return failure();
             for (Value cv : getClassVals(rw, args[0].cast<Value>())) {
@@ -712,9 +713,9 @@ struct EquivalenceGraphContainsPass
       std::string name = "record_match_" + pattern;
       pdlPattern.registerConstraintFunction(
           name,
-          [&results, &yieldClasses, pattern](
-              PatternRewriter &rw, PDLResultList &,
-              ArrayRef<PDLValue> args) -> LogicalResult {
+          [&results, &yieldClasses,
+           pattern](PatternRewriter &rw, PDLResultList &,
+                    ArrayRef<PDLValue> args) -> LogicalResult {
             PatternResult &r = results[pattern];
             r.totalMatches++;
             if (!args.empty() && args[0].isa<Operation *>()) {
