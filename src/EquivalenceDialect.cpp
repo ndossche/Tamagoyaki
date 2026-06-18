@@ -492,8 +492,12 @@ computeGraphCosts(GraphOp graphOp, const NodeCostFn &nodeCostFn,
           cost = computeNodeCost(candidate, nodeCostFn, opCosts, reductionFn,
                                  costAttributeName);
           // Store candidate cost so callers can look it up.
-          if (cost >= 0)
-            opCosts.try_emplace(candidate, cost);
+          if (cost >= 0) {
+            auto it = opCosts.find(candidate);
+            if (it == opCosts.end() || cost < it->second) {
+              opCosts[candidate] = cost;
+            }
+          }
         }
         if (cost == -1)
           continue;
