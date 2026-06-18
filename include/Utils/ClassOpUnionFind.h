@@ -16,6 +16,7 @@
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Support/LLVM.h"
+#include "llvm/ADT/DenseMap.h"
 
 namespace mlir::ematch {
 
@@ -115,6 +116,11 @@ public:
 private:
   SmallVector<equivalence::ClassOp> pendingErase;
   SmallVector<std::pair<mlir::Value, mlir::Value>> pendingClassUnions;
+
+  // Union by rank by out-of-IR lookup map.
+  // Since this only affects the union-by-rank heuristic, not correctness,
+  // no special handling is required for deletes / modifies.
+  llvm::DenseMap<mlir::Operation *, unsigned> unionRank;
 };
 
 } // namespace mlir::ematch

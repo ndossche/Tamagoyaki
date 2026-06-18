@@ -166,8 +166,16 @@ void ClassOpUnionFind::classUnion(mlir::PatternRewriter &rewriter,
   if (leader == other)
     return;
 
+  unsigned rankLeader = unionRank.lookup(leader.getOperation());
+  unsigned rankOther = unionRank.lookup(other.getOperation());
+
+  if (rankLeader < rankOther)
+    std::swap(leader, other);
+
   // Lazy union: just point `other` at `leader` via the leader operand.
   other.getLeaderMutable().assign(leader.getResult());
+  if (rankLeader == rankOther)
+    unionRank[leader.getOperation()] = rankLeader + 1;
 
   // We push `other` such that at the start of `rebuild`,
   worklist.push_back(other);
