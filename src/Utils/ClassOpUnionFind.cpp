@@ -105,15 +105,26 @@ mlir::ematch::getClassResults(mlir::PatternRewriter &rewriter,
 // Instead of using erase directly, it first swaps with the last element to make
 // erase O(1).
 static void swappedErase(equivalence::ClassOp classOp, Value target) {
-  auto inputs = classOp.getInputs();
-  unsigned last = inputs.size() - 1; // inclusive
-  for (unsigned i = 0; i <= last; ++i) {
-    if (inputs[i] == target) {
-      if (i != last)
-        classOp->setOperand(i, inputs[last]);
-      classOp.getInputsMutable().erase(last);
-      return;
-    }
+  auto inputs = classOp.getInputsMutable();
+
+  // Instead of searching the operand in the inputs, which is O(#inputs),
+  // search it from the uses.
+  // Since the uses are limited by the number of classes, this is cheaper.
+  for (auto &use : target.getUses()) {
+    if (use.getOwner() != classOp.getOperation())
+      continue;
+
+    unsigned i = use.getOperandNumber();
+    // Check whether it's an actual input, and not a leader.
+    if (i >= inputs.size())
+      continue;
+
+    // Perform actual swap-erase.
+    unsigned last = inputs.size() - 1;
+    if (i != last)
+      classOp->setOperand(i, inputs[last].get());
+    inputs.erase(last);
+    return;
   }
 }
 
