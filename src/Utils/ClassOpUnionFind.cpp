@@ -287,6 +287,9 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
     // Deduplicate sets for operand merging keyed by leader op.
     // Shared across all ClassOps merging into the same leader.
     llvm::DenseMap<Operation *, llvm::SmallPtrSet<Value, 16>> leaderExisting;
+    // Operands to append to each leader, built across every ClassOp that merges into it.
+    // Allows for a batched append which will avoid repeated operand list resizes.
+    llvm::DenseMap<equivalence::ClassOp, SmallVector<Value>> leaderNewOperands;
     SmallVector<Operation *> current;
     std::swap(current, worklist);
     for (Operation *op : current) {
@@ -312,17 +315,15 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
           it->second.insert(leader.getInputs().begin(),
                             leader.getInputs().end());
         auto &existing = it->second;
+        auto &pending = leaderNewOperands[leader]; // Note: this access may make empty lists
 
-        SmallVector<Value, 8> newOperands;
         for (Value operand : c.getInputs()) {
           assert(
               !operand.getDefiningOp() ||
               !llvm::dyn_cast<equivalence::ClassOp>(operand.getDefiningOp()));
           if (existing.insert(operand).second)
-            newOperands.push_back(operand);
+            pending.push_back(operand);
         }
-        auto mutableInputs = leader.getInputsMutable();
-        mutableInputs.append(newOperands);
 
         // update all users of c
         rewriter.replaceAllUsesWith(c.getResult(), leader.getResult());
@@ -334,6 +335,12 @@ bool ClassOpUnionFind::rebuild(HashConsPatternRewriter &rewriter) {
         pendingErase.push_back(c);
       }
       todo.insert(leader.getOperation());
+    }
+
+    // Batched append.
+    for (auto &[leaderClass, operands] : leaderNewOperands) {
+      if (!operands.empty())
+        leaderClass.getInputsMutable().append(operands);
     }
 
     for (Operation *op : todo) {
